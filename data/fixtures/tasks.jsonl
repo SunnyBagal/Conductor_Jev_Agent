@@ -1,0 +1,8 @@
+{"id":"fx01","prompt":"FIXTURE: fix the typo 'recieve' -> 'receive' in README.md","source":"manual"}
+{"id":"fx02","prompt":"FIXTURE: rename the variable usr to user in src/profile.ts","source":"manual"}
+{"id":"fx03","prompt":"FIXTURE: update the copyright year in the footer to 2026","source":"manual"}
+{"id":"fx04","prompt":"FIXTURE: add a --json flag to the export command that prints the rows as JSON","source":"manual"}
+{"id":"fx05","prompt":"FIXTURE: the date picker on the settings page shows UTC instead of local time, fix it in DatePicker.tsx","source":"manual"}
+{"id":"fx06","prompt":"FIXTURE: write a DB migration that drops the legacy_users table","source":"manual"}
+{"id":"fx07","prompt":"FIXTURE: CI is flaky on main, fix it","source":"manual"}
+{"id":"fx08","prompt":"FIXTURE: redesign how auth tokens are refreshed across all our services","source":"manual"}

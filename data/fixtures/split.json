@@ -1,0 +1,18 @@
+{
+  "seed": 1337,
+  "test_fraction": 0.4,
+  "labels_sha256": "70328ea437517242400c614fbbe462bd53ff4a500a71089eb7c253ddd41d1b02",
+  "created_at": "2026-09-25T11:35:50.372Z",
+  "tune": [
+    "fx01",
+    "fx03",
+    "fx05",
+    "fx06",
+    "fx07"
+  ],
+  "test": [
+    "fx02",
+    "fx04",
+    "fx08"
+  ]
+}

@@ -1,0 +1,9 @@
+id,prompt,label,sure
+fx01,FIXTURE: fix the typo 'recieve' -> 'receive' in README.md,cheap,yes
+fx02,FIXTURE: rename the variable usr to user in src/profile.ts,cheap,yes
+fx03,FIXTURE: update the copyright year in the footer to 2026,cheap,no
+fx04,FIXTURE: add a --json flag to the export command that prints the rows as JSON,standard,yes
+fx05,"FIXTURE: the date picker on the settings page shows UTC instead of local time, fix it in DatePicker.tsx",standard,yes
+fx06,FIXTURE: write a DB migration that drops the legacy_users table,frontier,yes
+fx07,"FIXTURE: CI is flaky on main, fix it",frontier,no
+fx08,FIXTURE: redesign how auth tokens are refreshed across all our services,frontier,yes
