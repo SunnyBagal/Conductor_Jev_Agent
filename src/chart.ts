@@ -9,33 +9,48 @@ export interface ChartPoint {
   label?: string;
 }
 
+/** Round a raw step up to 1, 2, 2.5 or 5 x 10^k so tick labels read cleanly. */
+function niceStep(range: number, ticks: number): number {
+  const raw = range / ticks || 1;
+  const pow = 10 ** Math.floor(Math.log10(raw));
+  return ([1, 2, 2.5, 5, 10].find((m) => m * pow >= raw) ?? 10) * pow;
+}
+
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
 export function sweepSvg(front: ChartPoint[], chosen: ChartPoint, baselines: ChartPoint[], xLabel: string): string {
   const W = 640,
     H = 380,
-    m = { l: 56, r: 24, t: 40, b: 48 };
+    m = { l: 56, r: 32, t: 40, b: 48 };
   const all = [...front, chosen, ...baselines];
-  const xMax = Math.max(...all.map((p) => p.spend)) * 1.08 || 1;
-  const xMin = Math.min(0, ...all.map((p) => p.spend));
-  const yMax = Math.max(0.05, ...all.map((p) => p.under)) * 1.15;
+  const xStep = niceStep(Math.max(...all.map((p) => p.spend)), 4);
+  const xMin = 0;
+  const xMax = Math.ceil((Math.max(...all.map((p) => p.spend)) * 1.05) / xStep) * xStep || 1;
+  const yStep = niceStep(Math.max(0.05, ...all.map((p) => p.under)), 4);
+  const yMax = Math.ceil((Math.max(0.05, ...all.map((p) => p.under)) * 1.1) / yStep) * yStep;
   const x = (v: number) => m.l + ((v - xMin) / (xMax - xMin)) * (W - m.l - m.r);
   const y = (v: number) => H - m.b - (v / yMax) * (H - m.t - m.b);
 
-  const yTicks = Array.from({ length: 5 }, (_, i) => (yMax * i) / 4);
-  const xTicks = Array.from({ length: 5 }, (_, i) => xMin + ((xMax - xMin) * i) / 4);
+  const range = (max: number, step: number) => Array.from({ length: Math.round(max / step) + 1 }, (_, i) => i * step);
+  const yTicks = range(yMax, yStep);
+  const xTicks = range(xMax, xStep);
   const grid = yTicks
-    .map((v) => `<line class="grid" x1="${m.l}" x2="${W - m.r}" y1="${y(v)}" y2="${y(v)}"/><text class="tick" x="${m.l - 8}" y="${y(v) + 4}" text-anchor="end">${(v * 100).toFixed(0)}%</text>`)
+    .map((v) => `<line class="grid" x1="${m.l}" x2="${W - m.r}" y1="${y(v)}" y2="${y(v)}"/><text class="tick" x="${m.l - 8}" y="${y(v) + 4}" text-anchor="end">${Math.round(v * 100)}%</text>`)
     .join("");
-  const xt = xTicks.map((v) => `<text class="tick" x="${x(v)}" y="${H - m.b + 18}" text-anchor="middle">${v.toFixed(2)}</text>`).join("");
+  const xt = xTicks.map((v) => `<text class="tick" x="${x(v)}" y="${H - m.b + 18}" text-anchor="middle">${+v.toFixed(2)}</text>`).join("");
 
   const sorted = [...front].sort((a, b) => a.spend - b.spend);
   const path = sorted.map((p, i) => `${i ? "L" : "M"}${x(p.spend).toFixed(1)},${y(p.under).toFixed(1)}`).join(" ");
   const tip = (p: ChartPoint, who: string) => `<title>${esc(who)}: spend ${p.spend.toFixed(3)}, under-routing ${(p.under * 100).toFixed(1)}%</title>`;
   const frontDots = sorted.map((p) => `<circle class="jev" cx="${x(p.spend)}" cy="${y(p.under)}" r="4">${tip(p, "Jev setting")}</circle>`).join("");
-  const chosenMark = `<circle class="ring" cx="${x(chosen.spend)}" cy="${y(chosen.under)}" r="8">${tip(chosen, "Jev chosen")}</circle><text class="lbl" x="${x(chosen.spend) + 12}" y="${y(chosen.under) - 10}">Jev (chosen)</text>`;
+  // Labels sit above-right of the dot; near the right edge they flip to the left.
+  const label = (px: number, py: number, text: string) => {
+    const flip = px > W - m.r - 110;
+    return `<text class="lbl" x="${px + (flip ? -9 : 9)}" y="${py - 8}" text-anchor="${flip ? "end" : "start"}">${esc(text)}</text>`;
+  };
+  const chosenMark = `<circle class="ring" cx="${x(chosen.spend)}" cy="${y(chosen.under)}" r="8">${tip(chosen, "Jev chosen")}</circle>${label(x(chosen.spend), y(chosen.under) - 14, "Jev (chosen)")}`;
   const base = baselines
-    .map((p) => `<circle class="base" cx="${x(p.spend)}" cy="${y(p.under)}" r="5">${tip(p, p.label ?? "")}</circle><text class="lbl" x="${x(p.spend) + 9}" y="${y(p.under) + 4}">${esc(p.label ?? "")}</text>`)
+    .map((p) => `<circle class="base" cx="${x(p.spend)}" cy="${y(p.under)}" r="5">${tip(p, p.label ?? "")}</circle>${label(x(p.spend), y(p.under), p.label ?? "")}`)
     .join("");
 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Savings versus under-routing on the tune set">
