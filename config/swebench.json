@@ -1,0 +1,11 @@
+{
+  "_note": "Track B. FILL IN `tiers` with submission folder names from https://github.com/SWE-bench/experiments/tree/main/evaluation/verified that have results/results.json. Prefer submissions that share one agent scaffold, so tier differences reflect the model and not the agent.",
+  "split": "verified",
+  "sample": 100,
+  "seed": 7,
+  "tiers": {
+    "cheap": [],
+    "standard": [],
+    "frontier": []
+  }
+}

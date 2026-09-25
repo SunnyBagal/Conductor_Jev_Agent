@@ -1,0 +1,7 @@
+{
+  "_note": "FILL THESE IN. Relative cost of running one task at each tier, in any single unit (e.g. average $ per task). Cost numbers are not computed while any value is null. router_overhead is the per-task cost of the router itself (e.g. one Jev call).",
+  "cheap": null,
+  "standard": null,
+  "frontier": null,
+  "router_overhead": 0
+}

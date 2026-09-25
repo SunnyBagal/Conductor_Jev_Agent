@@ -1,0 +1,30 @@
+{
+  "_note": "Starting values only. Tune them with `sweep` on the TUNE set, copy the chosen values here, then run `eval --final` once.",
+  "policy": {
+    "risky": 0.5,
+    "destructive": 0.5,
+    "underspecified": 0.6,
+    "needs_exploration": 0.6,
+    "scope_up": 2.5,
+    "scope_down": 0.5,
+    "task_type_conf": 0.5,
+    "scope_conf": 0.4
+  },
+  "split": {
+    "seed": 1337,
+    "test_fraction": 0.4
+  },
+  "sweep": {
+    "max_under_routing": 0.1,
+    "grid": {
+      "risky": [0.3, 0.5, 0.7],
+      "destructive": [0.3, 0.5, 0.7],
+      "underspecified": [0.5, 0.7, 0.9],
+      "needs_exploration": [0.5, 0.7, 0.9],
+      "scope_up": [2.0, 2.5],
+      "task_type_conf": [0.3, 0.5, 0.7, 0.9],
+      "scope_conf": [0.2, 0.4, 0.6]
+    },
+    "length_cutoffs": [40, 80, 120, 200, 300, 500, 800]
+  }
+}
