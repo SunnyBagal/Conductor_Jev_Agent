@@ -340,7 +340,7 @@ export async function runTrackB(th: ThresholdsFile, costs: Costs, cfg: SwebenchC
   L.push(`## 2. Unsolved tasks and the test-set size\n`);
   const counts = readJson(SPLIT_FILE, z.object({ counts: z.record(z.string(), z.object({ tune: z.number(), test: z.number() })) }).loose()).counts;
   L.push(
-    `- **${allIds.length - solved0.length} of ${allIds.length} tasks were resolved by no tier of ladder 1.** They have no "cheapest resolving tier", so they are **excluded** from every routing table below (no router is scored on them). The all-500 table in section 5 shows what they cost.`,
+    `- **${allIds.length - solved0.length} of ${allIds.length} tasks were resolved by no tier of ladder 1.** They have no "cheapest resolving tier", so they are **excluded** from every routing table below (no router is scored on them). The all-500 tables in sections 5 and 6 show what they cost.`,
     `- The remaining **${solved0.length}** were split **once** 50/50 (seed ${SPLIT_SEED}), stratified by cheapest resolving tier: ${TIERS.map((t) => `${t} ${counts[t]!.tune + counts[t]!.test} → ${counts[t]!.test} test`).join(", ")}. Halves of odd counts round up to the test side, so **test = ${test.length}**, tune = ${tune.length}.`,
     `- The split is frozen in \`${SPLIT_FILE}\`; \`trackb\` recomputes it and aborts if it differs. Ladder 2 is scored on the **same ${test.length} test ids** (minus any ladder 2 didn't solve), with thresholds tuned on ladder 1's tune half.\n`,
   );
@@ -382,7 +382,8 @@ export async function runTrackB(th: ThresholdsFile, costs: Costs, cfg: SwebenchC
     const casc = scores.at(-1)!;
     L.push(
       `\n**Cascade** (item 5): ${casc.relVsFrontier.toFixed(3)} est. relative cost = **${(casc.relVsFrontier / std.relVsFrontier).toFixed(2)}× always-standard**${casc.usdPerTask !== null ? ` (measured ${usd(casc.usdPerTask)} vs ${usd(std.usdPerTask)} per task = ${(casc.usdPerTask / std.usdPerTask!).toFixed(2)}×)` : ""}, ${casc.runsPerTask.toFixed(2)} runs per task. ` +
-        `This is an **upper bound**: it escalates exactly when SWE-bench's hidden tests fail, a perfect failure signal a real product doesn't have. Each extra run also adds a full agent run of wall-clock time.\n`,
+        `This is an **upper bound**: it escalates exactly when SWE-bench's hidden tests fail, a perfect failure signal a real product doesn't have. Each extra run also adds a full agent run of wall-clock time. ` +
+        `On this table the cascade eventually resolves every task by construction; its "routed model solved it" value is the share the cheap model solved on the first try.\n`,
     );
 
     // all-500 supplemental (parameter-free routers only; no tuning involved)
@@ -396,6 +397,16 @@ export async function runTrackB(th: ThresholdsFile, costs: Costs, cfg: SwebenchC
     L.push(`All ${allIds.length} tasks including unsolved ones (untuned routers only; one run each except the cascade, which pays for every tier on unsolved tasks):\n`);
     L.push(`| router | resolved | est. cost vs always-frontier | measured $/task | runs/task |`, `|---|---|---|---|---|`);
     for (const s of all) L.push(`| ${s.name} | ${fmt(s.resolved)} | ${s.relVsFrontier.toFixed(3)} | ${usd(s.usdPerTask)} | ${s.runsPerTask.toFixed(2)} |`);
+    const aStd = all[1]!, aCas = all[4]!;
+    L.push(
+      `\n**Once unsolved tasks are included, the cascade costs more, not less:** ${aCas.usdPerTask !== null ? `measured ${usd(aCas.usdPerTask)} vs ${usd(aStd.usdPerTask)} per task (${(aCas.usdPerTask / aStd.usdPerTask!).toFixed(2)}×)` : `est. ${(aCas.relVsFrontier / aStd.relVsFrontier).toFixed(2)}× always-standard`}, because every task no model can solve pays for all three runs. What it buys is **more solved tasks** (${fmt(aCas.resolved)} vs ${fmt(aStd.resolved)}), not savings.`,
+    );
+    if (hasMeasured(data)) {
+      const aFr = all[2]!;
+      L.push(
+        `\n**Per-token price is not per-task cost.** Measured, always-frontier costs ${usd(aFr.usdPerTask)} per task vs always-standard's ${usd(aStd.usdPerTask)} (${(aFr.usdPerTask! / aStd.usdPerTask!).toFixed(2)}×, not the ${(data.tiers.frontier.price / data.tiers.standard.price).toFixed(2)}× the prices suggest) and resolves ${fmt(aFr.resolved)} vs ${fmt(aStd.resolved)}.`,
+      );
+    }
     L.push("");
   }
 
@@ -405,10 +416,11 @@ export async function runTrackB(th: ThresholdsFile, costs: Costs, cfg: SwebenchC
   L.push(
     `Always standard; Jev's risk questions (any risky-area Noul ≥ ${th.policy.risky} or destructive Noul ≥ ${th.policy.destructive}, config thresholds, not tuned) → frontier.\n`,
     `- Escalates **${esc.length} of ${allIds.length}** tasks (${esc.filter((id) => test.includes(id)).length} of them in the test half).`,
-    ...ladders.map(
-      ({ data }) =>
-        `- ${data.name}: **${esc.filter((id) => opusOnly(data, id)).length}** of the escalated tasks were frontier-only (only the frontier model solved them), out of ${allIds.filter((id) => opusOnly(data, id)).length} frontier-only tasks overall.`,
-    ),
+    ...ladders.map(({ data }) => {
+      const hit = esc.filter((id) => opusOnly(data, id)).length;
+      const base = allIds.filter((id) => opusOnly(data, id)).length;
+      return `- ${data.name}: **${hit} of the ${esc.length}** escalated tasks were frontier-only (only the frontier model solved them): ${((100 * hit) / esc.length).toFixed(1)}% vs a ${((100 * base) / allIds.length).toFixed(1)}% base rate (${base}/${allIds.length}). It catches ${hit} of ${base} frontier-only tasks.`;
+    }),
     ``,
     `| escalated task | trigger |`,
     `|---|---|`,
