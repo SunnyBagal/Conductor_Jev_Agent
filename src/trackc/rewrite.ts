@@ -6,6 +6,7 @@
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import Anthropic from "@anthropic-ai/sdk";
+import { budgetedClient } from "../budget.ts";
 import { z } from "zod";
 import { appendJsonl, readJsonl } from "../data.ts";
 import { runPool } from "../pool.ts";
@@ -89,7 +90,7 @@ export async function runRewrite(
   );
   const todo = tasks.filter((t) => !done.has(t.id)).slice(0, o.limit ?? Infinity);
   console.log(`Rewriting ${todo.length} task(s) with ${base.model} @ T=${base.temperature}, prompt ${cfg.rewrite.prompt_version} (${done.size} already done).`);
-  const client = new Anthropic();
+  const client = budgetedClient("trackc-rewrite");
   const res = await runPool(todo, o.concurrency, async (t) => {
     const text = issueText.get(t.id);
     if (text === undefined) throw new Error(`${t.id}: no issue text`);

@@ -7,6 +7,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import Anthropic from "@anthropic-ai/sdk";
+import { budgetedClient } from "./budget.ts";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import { ensureDir, TierSchema, type Tier } from "./data.ts";
@@ -28,7 +29,7 @@ const OutputSchema = z.object({ tier: TierSchema, reason: z.string() });
 export type LlmLabel = z.infer<typeof OutputSchema> & { model: string; cached: boolean };
 
 let client: Anthropic | undefined;
-const getClient = () => (client ??= new Anthropic());
+const getClient = () => (client ??= budgetedClient("llm-classifier"));
 
 /**
  * Classify one prompt. Cached on disk by (rubric version, model, prompt).

@@ -1,6 +1,6 @@
 /** r3 commands: validate the judge, generate two-stage rewrites, judge all 200. */
 import { existsSync, writeFileSync } from "node:fs";
-import Anthropic from "@anthropic-ai/sdk";
+import { budgetedClient } from "../budget.ts";
 import { z } from "zod";
 import { appendJsonl, ensureDir, readJsonl, writeJsonl } from "../data.ts";
 import { runPool } from "../pool.ts";
@@ -30,7 +30,7 @@ export async function runJudgeValidate(o: { concurrency: number }) {
   const s = judgeSettings();
   const gold = readJsonl(GOLD_FILE, GoldSchema);
   const issue = new Map((await loadInstances()).map((x) => [x.instance_id, x.problem_statement]));
-  const client = new Anthropic();
+  const client = budgetedClient("judge-validate");
   const cache = loadJudgeCache();
   const res = await runPool(gold, o.concurrency, (g) => judgeCached(client, s, g.id, issue.get(g.id)!, "rewrite", g.text, cache));
   const failed = res.filter((r) => r.status === "rejected") as PromiseRejectedResult[];
@@ -69,7 +69,7 @@ export async function runR3(o: { concurrency: number; limit?: number }) {
   const issue = new Map((await loadInstances()).map((x) => [x.instance_id, x.problem_statement]));
   const st1Done = new Map((existsSync(STAGE1_FILE) ? readJsonl(STAGE1_FILE, Stage1RowSchema) : []).filter((r) => r.version === stage1.version).map((r) => [r.id, r]));
   const r3Done = new Set(readJsonl(PROMPTS_FILE, PromptRowSchema).filter((r) => r.prompt_version === "r3").map((r) => r.id));
-  const client = new Anthropic();
+  const client = budgetedClient("trackc-r3");
   const s1 = { model: stage1.model, temperature: stage1.temperature, maxTokens: stage1.max_tokens, instruction: stage1.instruction };
   const todo = tasks.filter((t) => !r3Done.has(t.id));
   console.log(`r3: ${todo.length} task(s) to do (${st1Done.size} stage-1 facts cached).`);
@@ -143,7 +143,7 @@ export async function runJudgeAll(o: { concurrency: number }) {
   const rows = readJsonl(PROMPTS_FILE, PromptRowSchema).filter((r) => r.prompt_version === "r3" && r.status === "active");
   const st1 = new Map(readJsonl(STAGE1_FILE, Stage1RowSchema).map((r) => [r.id, r.facts]));
   const issue = new Map((await loadInstances()).map((x) => [x.instance_id, x.problem_statement]));
-  const client = new Anthropic();
+  const client = budgetedClient("judge-all");
   const cache = loadJudgeCache();
   const jobs = rows.flatMap((r) => [
     { id: r.id, kind: "rewrite" as const, text: r.output },
