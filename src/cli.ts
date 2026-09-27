@@ -1,4 +1,4 @@
-#!/usr/bin/env -S npx tsx
+#!/usr/bin/env -S npx tsx --env-file-if-exists=.env
 import { existsSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { filledCosts, loadCosts, loadSwebenchConfig, loadThresholds } from "./config.ts";

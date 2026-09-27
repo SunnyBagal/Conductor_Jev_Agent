@@ -5,13 +5,13 @@
   "type": "module",
   "private": true,
   "engines": {
-    "node": ">=20"
+    "node": ">=22.9"
   },
   "bin": {
     "jev-router-eval": "src/cli.ts"
   },
   "scripts": {
-    "cli": "tsx src/cli.ts",
+    "cli": "tsx --env-file-if-exists=.env src/cli.ts",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test test/*.test.ts",
     "check": "npm run typecheck && npm test"
