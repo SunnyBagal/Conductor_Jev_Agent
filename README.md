@@ -22,5 +22,9 @@ npm run cli -- --help                               # all commands and options
 | `reports/test_runs.log` | One line for every `--final` run |
 | `reports/trackb.md` | SWE-bench deep-dive (`npm run cli -- trackb`) |
 | `reports/trackb_test_runs.log` | One line for every time the Track B test half is scored |
+| `docs/LABELING.md` | Track A labelling rubric |
+| `docs/trackc_writeup.md` | Track C write-up (frozen, tag `trackc-frozen`) |
+| `docs/trackd_protocol.md` | Track D protocol (real tasks, you run the agents) |
+| `config/budget.json` | Anthropic API budget: $0, enforced in code |
 
 Environment variables: `DECIDER=mock|typesafe`, `TYPESAFE_API_KEY`, `TYPESAFE_BASE_URL`, `ANTHROPIC_API_KEY` (only for `--with-llm` and `label`).
