@@ -27,6 +27,10 @@ Commands
   trackc-judge    judge every r3 rewrite and Stage 1 facts JSON
   trackc-review-r3  r3 review page + pre-registered stopping rule (no API calls)
   trackc-review   15 random rewrites next to originals -> docs/trackc_rewrite_review.md
+  trackd-add-task  register a real task: --id --repo --test-cmd --prompt [--base-commit]
+  trackd-jev       Jev prediction per Track D task (once, before any attempt)
+  trackd-log       log one attempt: --id --model haiku|sonnet|opus --tests-pass yes|no --would-merge yes|no --review-min N [--notes] [--cc-version]
+  trackd-report    reports/trackd.md (counts only)
   all         split (if missing) -> route -> baselines -> sweep -> eval -> report
 
 Options
@@ -62,6 +66,17 @@ async function main() {
       extend: { type: "boolean", default: false },
       "with-llm": { type: "boolean", default: false },
       "approve-jev": { type: "boolean", default: false },
+      id: { type: "string" },
+      repo: { type: "string" },
+      prompt: { type: "string" },
+      "test-cmd": { type: "string" },
+      "base-commit": { type: "string" },
+      model: { type: "string" },
+      "tests-pass": { type: "string" },
+      "would-merge": { type: "string" },
+      "review-min": { type: "string" },
+      notes: { type: "string" },
+      "cc-version": { type: "string" },
       help: { type: "boolean", short: "h", default: false },
     },
   });
@@ -148,6 +163,18 @@ async function main() {
       break;
     case "trackc-review":
       await (await import("./trackc/index.ts")).runReview();
+      break;
+    case "trackd-add-task":
+      (await import("./trackd.ts")).addTask({ id: values.id, repo: values.repo, prompt: values.prompt, testCmd: values["test-cmd"], baseCommit: values["base-commit"] });
+      break;
+    case "trackd-jev":
+      await (await import("./trackd.ts")).runTrackDJev(th.policy, { approveJev: values["approve-jev"] });
+      break;
+    case "trackd-log":
+      (await import("./trackd.ts")).logAttempt({ id: values.id, model: values.model, testsPass: values["tests-pass"], wouldMerge: values["would-merge"], reviewMin: values["review-min"], notes: values.notes, ccVersion: values["cc-version"] });
+      break;
+    case "trackd-report":
+      (await import("./trackd.ts")).trackDReport();
       break;
     case "all":
       if (values["dry-run"]) {
