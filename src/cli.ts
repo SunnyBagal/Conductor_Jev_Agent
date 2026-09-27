@@ -17,6 +17,7 @@ Commands
   report      write reports/report.md (+ sweep.svg)
   label       optional second labeler (Claude) -> llm_labels.jsonl, disagreements.jsonl
   swebench    Track B on SWE-bench Verified (fill config/swebench.json first)
+  trackb      Track B deep-dive -> reports/trackb.md (after swebench; scores the frozen test half)
   all         split (if missing) -> route -> baselines -> sweep -> eval -> report
 
 Options
@@ -106,6 +107,9 @@ async function main() {
       break;
     case "swebench":
       await (await import("./swebench.ts")).runSwebench(p, loadSwebenchConfig(), th.policy, costs, { concurrency, limit });
+      break;
+    case "trackb":
+      await (await import("./trackb.ts")).runTrackB(th, loadCosts(), loadSwebenchConfig());
       break;
     case "all":
       if (values["dry-run"]) {
