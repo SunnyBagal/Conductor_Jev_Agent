@@ -19,6 +19,7 @@ Commands
   swebench    Track B on SWE-bench Verified (fill config/swebench.json first)
   trackb      Track B deep-dive -> reports/trackb.md (after swebench; scores the frozen test half)
   trackc-select   Track C stratified task sample -> data/trackc_tasks.jsonl (refuses to overwrite)
+  trackc-variants assign style variants per task (fixed seed) -> data/trackc_variants.jsonl
   trackc-rewrite  casual prompt per task (issue text only) -> data/trackc_prompts.jsonl (resumable)
   trackc-review   15 random rewrites next to originals -> docs/trackc_rewrite_review.md
   all         split (if missing) -> route -> baselines -> sweep -> eval -> report
@@ -116,6 +117,9 @@ async function main() {
       break;
     case "trackc-select":
       await (await import("./trackc/index.ts")).runSelect(values.force);
+      break;
+    case "trackc-variants":
+      (await import("./trackc/index.ts")).runVariants(values.force);
       break;
     case "trackc-rewrite":
       await (await import("./trackc/index.ts")).runRewriteCmd({ concurrency, limit });
