@@ -36,7 +36,8 @@ Options
   --final            eval/report on the TEST set; logged to reports/test_runs.log
   --force            split: overwrite an existing split
   --extend           split: assign only new ids, keep existing assignments
-  --with-llm         baselines: add the cheap Claude classifier
+  --with-llm         baselines: add the cheap Claude classifier (blocked: Anthropic budget is $0)
+  --approve-jev      allow a real Jev run that needs more than 100 new calls
 
 Environment
   DECIDER=mock|typesafe   where Jev answers come from (default: mock)
@@ -59,6 +60,7 @@ async function main() {
       force: { type: "boolean", default: false },
       extend: { type: "boolean", default: false },
       "with-llm": { type: "boolean", default: false },
+      "approve-jev": { type: "boolean", default: false },
       help: { type: "boolean", short: "h", default: false },
     },
   });
@@ -84,7 +86,7 @@ async function main() {
 
   const split = async (force: boolean, extend: boolean) =>
     (await import("./split.ts")).runSplit(p, { seed: th.split.seed, testFraction: th.split.test_fraction, force, extend });
-  const route = async () => (await import("./route.ts")).runRoute(p, th.policy, { limit, concurrency, dryRun: values["dry-run"] });
+  const route = async () => (await import("./route.ts")).runRoute(p, th.policy, { limit, concurrency, dryRun: values["dry-run"], approveJev: values["approve-jev"] });
   const baselines = async () =>
     (await import("./baselines.ts")).runBaselines(p, th, costs, { withLlm: values["with-llm"], concurrency, limit });
   const sweep = async () => (await import("./sweep.ts")).runSweep(p, th, costs);
@@ -114,7 +116,7 @@ async function main() {
       await (await import("./label.ts")).runLabel(p, { concurrency, limit });
       break;
     case "swebench":
-      await (await import("./swebench.ts")).runSwebench(p, loadSwebenchConfig(), th.policy, costs, { concurrency, limit });
+      await (await import("./swebench.ts")).runSwebench(p, loadSwebenchConfig(), th.policy, costs, { concurrency, limit, approveJev: values["approve-jev"] });
       break;
     case "trackb":
       await (await import("./trackb.ts")).runTrackB(th, loadCosts(), loadSwebenchConfig());

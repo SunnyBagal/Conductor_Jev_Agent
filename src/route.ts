@@ -1,6 +1,6 @@
 import { loadTasks, routesPath, writeJsonl, type Paths, type Route } from "./data.ts";
 import type { PolicyThresholds } from "./config.ts";
-import { makeDecider, requestBody } from "./decider.ts";
+import { assertJevApproved, makeDecider, requestBody } from "./decider.ts";
 import { decide } from "./policy.ts";
 import { runPool } from "./pool.ts";
 
@@ -8,6 +8,7 @@ export interface RouteOptions {
   limit?: number;
   concurrency: number;
   dryRun: boolean;
+  approveJev?: boolean;
 }
 
 export async function runRoute(p: Paths, policy: PolicyThresholds, opts: RouteOptions): Promise<Route[]> {
@@ -19,6 +20,7 @@ export async function runRoute(p: Paths, policy: PolicyThresholds, opts: RouteOp
     return [];
   }
 
+  assertJevApproved(tasks.map((t) => t.prompt), !!opts.approveJev, "route");
   const decider = makeDecider(p.mockAnswers);
   console.log(`Routing ${tasks.length} task(s) with DECIDER=${decider.kind}, concurrency=${opts.concurrency}`);
 

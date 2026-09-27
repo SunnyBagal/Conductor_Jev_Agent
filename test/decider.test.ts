@@ -65,3 +65,19 @@ test("runPool bounds concurrency, keeps order, and isolates failures", async () 
     [10, 20, "err", 40, 50, 60],
   );
 });
+
+test("Jev guard: over 100 new calls needs approval; cached calls do not count", async () => {
+  const { assertJevApproved, uncachedJevCalls } = await import("../src/decider.ts");
+  const saved = process.env.DECIDER;
+  process.env.DECIDER = "typesafe";
+  try {
+    const prompts = Array.from({ length: 101 }, (_, i) => `unique prompt for guard test ${i} ${Math.random()}`);
+    assert.equal(uncachedJevCalls(prompts), 101);
+    assert.throws(() => assertJevApproved(prompts, false, "t"), /--approve-jev/);
+    assert.doesNotThrow(() => assertJevApproved(prompts, true, "t"));
+    assert.doesNotThrow(() => assertJevApproved(prompts.slice(0, 100), false, "t"));
+  } finally {
+    if (saved === undefined) delete process.env.DECIDER;
+    else process.env.DECIDER = saved;
+  }
+});

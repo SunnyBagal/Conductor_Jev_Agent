@@ -15,7 +15,7 @@ import { join } from "node:path";
 import { z } from "zod";
 import type { FilledCosts, PolicyThresholds, SwebenchConfig } from "./config.ts";
 import { ensureDir, readJsonl, TIERS, tierIndex, writeJson, writeJsonl, type Paths, type Tier } from "./data.ts";
-import { makeDecider } from "./decider.ts";
+import { assertJevApproved, makeDecider } from "./decider.ts";
 import { decide, type JevAnswers } from "./policy.ts";
 import { runPool } from "./pool.ts";
 import { rng } from "./split.ts";
@@ -153,7 +153,7 @@ export async function runSwebench(
   cfg: SwebenchConfig,
   policy: PolicyThresholds,
   costs: FilledCosts | null,
-  o: { concurrency: number; limit?: number },
+  o: { concurrency: number; limit?: number; approveJev?: boolean },
 ) {
   const ladder = cfg.ladders[0]!;
   if (TIERS.some((t) => ladder.tiers[t].submissions.length === 0))
@@ -175,6 +175,7 @@ export async function runSwebench(
     .slice(0, Math.min(cfg.sample, o.limit ?? Infinity))
     .map((s) => s.x);
 
+  assertJevApproved(sample.map((x) => x.problem_statement), !!o.approveJev, "swebench");
   const decider = makeDecider(p.mockAnswers);
   console.log(`Track B: routing ${sample.length} SWE-bench Verified problem statements (DECIDER=${decider.kind})`);
   const res = await runPool(sample, o.concurrency, async (inst) => {

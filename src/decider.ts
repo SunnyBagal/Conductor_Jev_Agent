@@ -135,6 +135,25 @@ export class TypeSafeDecider implements Decider {
 }
 
 // ---------------------------------------------------------------------------
+// Jev call guard: runs needing more than JEV_APPROVAL_CALLS new calls need --approve-jev.
+// ---------------------------------------------------------------------------
+
+export const JEV_APPROVAL_CALLS = 100;
+/** Measured mean on Track B: ~2,300 input tokens per call at $0.042/M (docs.typesafe.ai/models). */
+export const JEV_EST_USD_PER_CALL = (2300 * 0.042) / 1e6;
+
+export const uncachedJevCalls = (prompts: readonly string[], cacheDir = CACHE_DIR) =>
+  prompts.filter((p) => !existsSync(join(cacheDir, `${cacheKey(p)}.json`))).length;
+
+/** Throws when a real Jev run would make more than 100 new calls without explicit approval. */
+export function assertJevApproved(prompts: readonly string[], approved: boolean, what: string) {
+  if ((process.env.DECIDER ?? "mock").trim().toLowerCase() !== "typesafe") return;
+  const n = uncachedJevCalls(prompts);
+  const est = n * JEV_EST_USD_PER_CALL;
+  console.log(`${what}: ${n} new Jev call(s) needed (${prompts.length - n} cached), est. $${est.toFixed(4)}.`);
+  if (n > JEV_APPROVAL_CALLS && !approved)
+    throw new Error(`${what} needs ${n} new Jev calls (> ${JEV_APPROVAL_CALLS}), est. $${est.toFixed(3)}. Re-run with --approve-jev after approval.`);
+}
 
 export function makeDecider(mockPath: string): Decider {
   const kind = (process.env.DECIDER ?? "mock").trim().toLowerCase();
