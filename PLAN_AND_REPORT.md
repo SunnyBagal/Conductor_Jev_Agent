@@ -23,11 +23,11 @@ The main mistake to measure is **under-routing**: sending a task to a model too 
 | Part | State |
 |---|---|
 | Full pipeline | ✅ Runs end to end with `DECIDER=mock` on 8 fixtures |
-| Tests | ✅ 63 passing (the policy is tested without any API) |
+| Tests | ✅ 69 passing (the policy is tested without any API) |
 | Real Jev | ✅ Key loaded from `.env`; 508 real calls made (8 fixtures, 500 SWE-bench tasks) |
 | Your dataset | ⏳ `data/tasks.jsonl` and `data/labels.csv` are empty |
-| Costs | ⏳ `config/costs.json` has placeholders; until you fill it in, spend is shown as average tier |
-| SWE-bench (Track B) | ✅ Run on all 500 tasks. Tiers: Claude 3.5 Haiku / 4 Sonnet / 4 Opus, all in the same agent harness |
+| Costs | ✅ `config/costs.json` holds official per-token prices by model (source cited) |
+| SWE-bench (Track B) | ✅ 500 tasks, two Claude ladders, full detail in [`reports/trackb.md`](reports/trackb.md). **Correction:** the Claude 4 ladder is *not* one clean scaffold (Haiku run is from 2024, not pass@1). The Claude 4.5 ladder is. |
 
 ## Findings with real Jev (2026-09-27, SWE-bench)
 The ground truth here is the cheapest model that actually solved each task. Thresholds were tuned on one half and scored on the other half (199 tasks). To reproduce: `npx tsx analysis/trackb.mts`.
