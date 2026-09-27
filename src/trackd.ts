@@ -17,15 +17,26 @@ export const MODELS = ["haiku", "sonnet", "opus"] as const;
 export type DModel = (typeof MODELS)[number];
 export const TIER_OF: Record<DModel, Tier> = { haiku: "cheap", sonnet: "standard", opus: "frontier" };
 
-export const DTaskSchema = z.object({
-  task_id: z.string().min(1),
-  repo: z.string().min(1),
-  prompt: z.string().min(1),
-  prompt_sha256: z.string(),
-  test_cmd: z.string().min(1),
-  base_commit: z.string().optional(),
-  registered_at: z.string(),
-});
+const ManualCheckSchema = z.object({ steps: z.array(z.string().min(1)).min(1), expected: z.string().min(1) });
+
+export const DTaskSchema = z
+  .object({
+    task_id: z.string().min(1),
+    repo: z.string().min(1),
+    prompt: z.string().min(1),
+    prompt_sha256: z.string(),
+    /** Exactly one of test_cmd / manual_check (amendment 1). */
+    check_kind: z.enum(["test_cmd", "manual-check"]).default("test_cmd"),
+    test_cmd: z.string().min(1).optional(),
+    manual_check: ManualCheckSchema.optional(),
+    /** Hash of prompt + check together: neither can change after registration. */
+    lock_sha256: z.string().optional(),
+    base_commit: z.string().optional(),
+    registered_at: z.string(),
+  })
+  .refine((t) => (t.check_kind === "test_cmd" ? !!t.test_cmd && !t.manual_check : !!t.manual_check && !t.test_cmd), {
+    message: "a task needs exactly one of test_cmd or manual_check, matching check_kind",
+  });
 export type DTask = z.infer<typeof DTaskSchema>;
 
 export const DAttemptSchema = z.object({
@@ -44,6 +55,34 @@ export type DAttempt = z.infer<typeof DAttemptSchema>;
 export const DJevSchema = z.object({ task_id: z.string(), tier: z.enum(["cheap", "standard", "frontier"]), reason: z.string(), model: z.string(), prompt_sha256: z.string() });
 
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
+
+/** Lock hash over the prompt and its check, canonicalised. */
+export const lockHash = (prompt: string, check: { test_cmd?: string; manual_check?: { steps: string[]; expected: string } }) =>
+  sha(JSON.stringify({ prompt, test_cmd: check.test_cmd ?? null, manual_check: check.manual_check ?? null }));
+
+/** Build a registrable task from CLI-ish input; throws unless exactly one kind of check is given. */
+export function buildTask(o: { id?: string; repo?: string; prompt?: string; testCmd?: string; steps?: string[]; expected?: string; baseCommit?: string }, now = new Date().toISOString()): DTask {
+  if (!o.id || !o.repo || !o.prompt) throw new Error("trackd-add-task needs --id, --repo and --prompt");
+  const hasManual = !!(o.steps?.length || o.expected);
+  if (!!o.testCmd === hasManual) throw new Error("give exactly one check: --test-cmd, OR --step (repeatable, in order) plus --expected");
+  if (hasManual && (!o.steps?.length || !o.expected)) throw new Error("a manual check needs at least one --step and an --expected result");
+  const check = o.testCmd ? { test_cmd: o.testCmd } : { manual_check: { steps: o.steps!, expected: o.expected! } };
+  return DTaskSchema.parse({
+    task_id: o.id,
+    repo: o.repo,
+    prompt: o.prompt,
+    prompt_sha256: sha(o.prompt),
+    check_kind: o.testCmd ? "test_cmd" : "manual-check",
+    ...check,
+    lock_sha256: lockHash(o.prompt, check),
+    ...(o.baseCommit ? { base_commit: o.baseCommit } : {}),
+    registered_at: now,
+  });
+}
+
+/** Tasks whose prompt or check no longer match their lock hash (tampering check). */
+export const lockViolations = (tasks: readonly DTask[]) =>
+  tasks.filter((t) => t.lock_sha256 && t.lock_sha256 !== lockHash(t.prompt, { test_cmd: t.test_cmd, manual_check: t.manual_check })).map((t) => t.task_id);
 const load = <T>(f: string, s: z.ZodType<T>) => (existsSync(f) ? readJsonl(f, s) : []);
 
 // ---------------------------------------------------------------------------
@@ -106,15 +145,14 @@ export function compare(labels: Map<string, DLabel>, route: (id: string) => Tier
 // Commands
 // ---------------------------------------------------------------------------
 
-export function addTask(o: { id?: string; repo?: string; prompt?: string; testCmd?: string; baseCommit?: string }) {
-  if (!o.id || !o.repo || !o.prompt || !o.testCmd) throw new Error("trackd-add-task needs --id, --repo, --prompt and --test-cmd");
+export function addTask(o: { id?: string; repo?: string; prompt?: string; testCmd?: string; steps?: string[]; expected?: string; baseCommit?: string }) {
   const reg = registrationError(load(TD.attempts, DAttemptSchema));
   if (reg) throw new Error(reg);
   const tasks = load(TD.tasks, DTaskSchema);
-  if (tasks.some((t) => t.task_id === o.id)) throw new Error(`task ${o.id} already registered (prompts can't be edited)`);
-  const t: DTask = { task_id: o.id, repo: o.repo, prompt: o.prompt, prompt_sha256: sha(o.prompt), test_cmd: o.testCmd, ...(o.baseCommit ? { base_commit: o.baseCommit } : {}), registered_at: new Date().toISOString() };
+  if (tasks.some((t) => t.task_id === o.id)) throw new Error(`task ${o.id} already registered (prompts and checks can't be edited)`);
+  const t = buildTask(o);
   appendJsonl(TD.tasks, t);
-  console.log(`Registered ${t.task_id} (${tasks.length + 1} task(s)). Prompt hash ${t.prompt_sha256.slice(0, 12)}.`);
+  console.log(`Registered ${t.task_id} [${t.check_kind}] (${tasks.length + 1} task(s)). Lock hash ${t.lock_sha256!.slice(0, 12)}.`);
 }
 
 const yesNo = (v: string | undefined, name: string) => {
@@ -128,6 +166,8 @@ export function logAttempt(o: { id?: string; model?: string; testsPass?: string;
   const model = z.enum(MODELS).parse(o.model);
   const tasks = load(TD.tasks, DTaskSchema);
   const attempts = load(TD.attempts, DAttemptSchema);
+  const broken = lockViolations(tasks);
+  if (broken.length) throw new Error(`prompt or check changed after registration for: ${broken.join(", ")}`);
   const err = attemptError(tasks, attempts, existsSync(TD.jev), { task_id: o.id, model });
   if (err) throw new Error(err);
   const tests_pass = yesNo(o.testsPass, "tests-pass");
@@ -165,6 +205,9 @@ export function trackDReport() {
   const labels = new Map(tasks.map((t) => [t.task_id, labelOf(attempts, t.task_id)]));
   const count = (l: DLabel) => [...labels.values()].filter((x) => x === l).length;
   const n = tasks.length;
+  const manual = new Set(tasks.filter((t) => t.check_kind === "manual-check").map((t) => t.task_id));
+  const solvedIds = [...labels].filter(([, l]) => l !== "unsolved" && l !== "incomplete").map(([id]) => id);
+  const broken = lockViolations(tasks);
   const routers: [string, (id: string) => Tier][] = [
     ...(jev.size === n && n > 0 ? ([["Jev", (id: string) => jev.get(id)!.tier]] as [string, (id: string) => Tier][]) : []),
     ["always cheap (Haiku)", () => "cheap"],
@@ -176,7 +219,10 @@ export function trackDReport() {
     `Protocol: \`docs/trackd_protocol.md\`. **Counts only; n = ${n} registered tasks.**\n`,
     `- Labels: cheap ${count("cheap")}/${n}, standard ${count("standard")}/${n}, frontier ${count("frontier")}/${n}, unsolved ${count("unsolved")}/${n}, incomplete ${count("incomplete")}/${n}.`,
     `- Attempts logged: ${attempts.length}. Cascade runs per finished task: ${attempts.filter((a) => labels.get(a.task_id) !== "incomplete").length}/${n - count("incomplete")}. Total review minutes: ${attempts.reduce((s, a) => s + a.review_minutes, 0)}.`,
-    `- Jev predictions: ${jev.size}/${n}${jev.size ? ` (model ${[...jev.values()][0]!.model})` : ""}.\n`,
+    `- Jev predictions: ${jev.size}/${n}${jev.size ? ` (model ${[...jev.values()][0]!.model})` : ""}.`,
+    `- Checks: test command ${n - manual.size}/${n}, **manual-check ${manual.size}/${n}**. Successes resting on my judgement alone (manual check + would-merge): **${solvedIds.filter((id) => manual.has(id)).length}/${solvedIds.length}** solved tasks.`,
+    broken.length ? `- ⚠️ **Lock violated** (prompt or check changed after registration): ${broken.join(", ")}.` : `- Lock hashes: all ${n} prompts and checks unchanged since registration.`,
+    ``,
     `| router | exact | under-routed | over-routed | routed model's own attempt: succeeded / failed / not observed |`,
     `|---|---|---|---|---|`,
   ];
@@ -188,16 +234,16 @@ export function trackDReport() {
     `\nRows cover solved tasks only (n = ${[...labels.values()].filter((l) => l !== "unsolved" && l !== "incomplete").length}). "Not observed" means the cascade never ran that model on the task, and success there is not assumed.`,
     `\n**Cascade (what was actually run):** never under-routes by construction; ${attempts.length} runs for ${n - count("incomplete")} finished tasks.`,
     `\n## Per task\n`,
-    `| task | repo | Jev | label | attempts (model: success) | review min |`,
-    `|---|---|---|---|---|---|`,
+    `| task | repo | check | Jev | label | attempts (model: success) | review min |`,
+    `|---|---|---|---|---|---|---|`,
     ...tasks.map((t) => {
       const mine = attempts.filter((a) => a.task_id === t.task_id);
-      return `| ${t.task_id} | ${t.repo} | ${jev.get(t.task_id)?.tier ?? "—"} | ${labels.get(t.task_id)} | ${mine.map((a) => `${a.model}: ${a.success ? "yes" : "no"}`).join(", ") || "—"} | ${mine.reduce((s, a) => s + a.review_minutes, 0)} |`;
+      return `| ${t.task_id} | ${t.repo} | ${t.check_kind === "manual-check" ? "**manual-check**" : "test_cmd"} | ${jev.get(t.task_id)?.tier ?? "—"} | ${labels.get(t.task_id)} | ${mine.map((a) => `${a.model}: ${a.success ? "yes" : "no"}`).join(", ") || "—"} | ${mine.reduce((s, a) => s + a.review_minutes, 0)} |`;
     }),
     `\n## Limitations\n`,
     `- Small n (${n}); a difference of one or two tasks is noise.`,
     `- My own repos and tasks; not representative of Conductor users.`,
-    `- "Would merge" is my own, unblinded judgement.`,
+    `- "Would merge" is my own, unblinded judgement. For **manual-check** tasks, "passes" is my judgement too, so those successes rest on my judgement alone.`,
     `- One attempt per model; run-to-run variance not measured.`,
     `- Higher models never ran where a cheaper one succeeded (shown as not observed).`,
     `- Subscription runs have no per-run price, so no dollar figures.`,
