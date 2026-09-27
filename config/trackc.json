@@ -24,9 +24,23 @@
     "D_none_hard": 1
   },
   "rewrite": {
-    "prompt_version": "r1",
+    "prompt_version": "r2",
     "max_tokens": 400,
-    "instruction": "Rewrite this bug report as the short message a developer would type to a coding agent. 1–3 sentences, casual, may be vague or have typos, can mention a file or function name if a developer would know it. Do NOT say how hard it is, do NOT hint at severity or effort, do NOT include the solution. Output only the message."
+    "instruction": "Rewrite this bug report as the short message a developer would type to a coding agent. 1–3 sentences, casual, may be vague or have typos, can mention a file or function name if a developer would know it. Describe only what goes wrong and, if needed, what should happen instead. You may keep a short reproduction if the report has one: an error message, a failing input, or expected vs actual output. Keep it minimal. Do NOT guess the cause, say what to change, or say where to look — even if the bug report does. Do NOT say how hard it is, do NOT hint at severity or effort, do NOT include the solution. Output only the message.",
+    "variant_seed": 20260928,
+    "style_variants": {
+      "terse": "Style for this message: terse. One short sentence or fragment, like a quick chat message.",
+      "typo": "Style for this message: typed in a hurry. All lowercase, one or two natural typos, loose punctuation.",
+      "file_mention": "Style for this message: mention the file, module, or function where the problem shows up (where the user sees it fail), if the report names one. Do not say what to change there.",
+      "rambly": "Style for this message: a bit rambly. 2–3 run-on sentences with some context or mild frustration, still following every rule above."
+    },
+    "rejected": [
+      {
+        "version": "r1",
+        "instruction": "Rewrite this bug report as the short message a developer would type to a coding agent. 1–3 sentences, casual, may be vague or have typos, can mention a file or function name if a developer would know it. Do NOT say how hard it is, do NOT hint at severity or effort, do NOT include the solution. Output only the message.",
+        "reason": "Audit flagged 66/200 (32 possible fixes, 31 cause guesses); 4 of 15 random rewrites leaked the fix. No style variants reached the rewriter."
+      }
+    ]
   },
   "tier_order": ["cheap", "standard", "top", "ceiling"],
   "attempts": 3,
