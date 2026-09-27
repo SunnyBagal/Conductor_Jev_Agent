@@ -4,6 +4,7 @@ import { z } from "zod";
 import { ensureDir, readJson, readJsonl, writeJsonl } from "../data.ts";
 import { rng } from "../split.ts";
 import { loadInstances, loadSubmission } from "../swebench.ts";
+import { auditRewrite } from "./audit.ts";
 import { PROMPTS_FILE, PromptRowSchema, runRewrite } from "./rewrite.ts";
 import { selectTasks, STRATA, TaskRowSchema, TrackCConfigSchema } from "./select.ts";
 
@@ -69,6 +70,16 @@ export async function runReview(n = 15) {
   pick.forEach((r, i) => {
     L.push(`## ${i + 1}. \`${r.id}\`\n`, `**Casual prompt:**\n\n> ${r.output.replace(/\n/g, "\n> ")}\n`, `<details><summary>Original issue</summary>\n\n\`\`\`text\n${clip(issue.get(r.id) ?? "")}\n\`\`\`\n</details>\n`);
   });
+  const flags = prompts.flatMap((r) => auditRewrite(r.id, r.output).map((f) => ({ ...f, text: r.output })));
+  const flaggedIds = new Set(flags.map((f) => f.id));
+  L.push(
+    `## Automated audit: ${flaggedIds.size} of ${prompts.length} rewrites flagged\n`,
+    `Heuristic regexes over **all** ${prompts.length} rewrites, flagging effort or severity hints, possible solutions and >3 sentences. They over-flag on purpose: "should return X" is expected behaviour and fine; "should use Y" names a fix. Please judge each one.\n`,
+    `| task | rule | matched | rewrite |`,
+    `|---|---|---|---|`,
+    ...flags.map((f) => `| \`${f.id}\` | ${f.rule} | "${f.match}" | ${f.text.replace(/\|/g, "\\|").replace(/\n/g, " ")} |`),
+    "",
+  );
   ensureDir("docs");
   writeFileSync(REVIEW_FILE, L.join("\n"));
   console.log(`Wrote ${REVIEW_FILE}`);
