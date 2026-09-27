@@ -24,6 +24,7 @@ Commands
   trackc-judge-validate  validate the r3 judge on frozen hand labels (must catch every fix leak)
   trackc-r3       two-stage rewrite (facts -> casual) for all tasks -> data/trackc_prompts.jsonl
   trackc-judge    judge every r3 rewrite and Stage 1 facts JSON
+  trackc-review-r3  r3 review page + pre-registered stopping rule (no API calls)
   trackc-review   15 random rewrites next to originals -> docs/trackc_rewrite_review.md
   all         split (if missing) -> route -> baselines -> sweep -> eval -> report
 
@@ -126,6 +127,9 @@ async function main() {
       break;
     case "trackc-r3":
       await (await import("./trackc/r3.ts")).runR3({ concurrency, limit });
+      break;
+    case "trackc-review-r3":
+      await (await import("./trackc/r3.ts")).runReviewR3();
       break;
     case "trackc-judge":
       await (await import("./trackc/r3.ts")).runJudgeAll({ concurrency });

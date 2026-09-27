@@ -164,3 +164,91 @@ export async function runJudgeAll(o: { concurrency: number }) {
   if (failed.length) process.exitCode = 1;
   return labels;
 }
+
+// ---------------------------------------------------------------------------
+// Review + stopping rule (no API calls: reads saved results only)
+// ---------------------------------------------------------------------------
+
+const REVIEW_R3 = "docs/trackc_rewrite_review_r3.md";
+export const EXCLUSIONS_FILE = "data/trackc_exclusions.jsonl";
+/** r2 tasks flagged by hand (criterion 3). */
+const R2_HAND_FLAGGED = ["django__django-13401", "django__django-12663", "django__django-11141", "django__django-11211", "django__django-15280", "django__django-11734", "matplotlib__matplotlib-23476", "sympy__sympy-16766"];
+
+export async function runReviewR3() {
+  const cfg = loadTrackCConfig();
+  const j = cfg.judge!;
+  const rows = readJsonl(PROMPTS_FILE, PromptRowSchema).filter((r) => r.prompt_version === "r3" && r.status === "active");
+  const facts = new Map(readJsonl(STAGE1_FILE, Stage1RowSchema).map((r) => [r.id, r.facts]));
+  const tasks = new Map(readJsonl(TASKS_FILE, TaskRowSchema).map((t) => [t.id, t]));
+  const issue = new Map((await loadInstances()).map((x) => [x.instance_id, x.problem_statement]));
+  const cache = loadJudgeCache();
+  const verdict = (id: string, kind: "rewrite" | "facts", text: string) => cache.get(`${j.version}|${kind}|${id}|${sha256(text)}`);
+  const labels = rows.map((r) => ({ r, rw: verdict(r.id, "rewrite", r.output), fx: verdict(r.id, "facts", JSON.stringify(facts.get(r.id), null, 2)) }));
+  if (labels.some((x) => !x.rw || !x.fx)) throw new Error("some r3 artifacts are not judged yet (trackc-judge)");
+  const notClean = labels.filter((x) => x.rw!.label !== "clean");
+  const flagged = labels.filter((x) => x.rw!.label !== "clean" || x.fx!.label !== "clean");
+  const limit = Math.floor(rows.length * 0.1 - 1e-9);
+  const count = (xs: string[]) => xs.reduce((m, x) => ((m[x] = (m[x] ?? 0) + 1), m), {} as Record<string, number>);
+  const fmtCounts = (m: Record<string, number>) => Object.entries(m).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(", ");
+  const clip = (s: string, max = 600) => (s.length > max ? `${s.slice(0, max)}… *(${s.length} chars)*` : s);
+  const rand = (await import("../split.ts")).rng(cfg.seed + 303);
+  const fresh = [...labels].sort((a, b) => a.r.id.localeCompare(b.r.id)).map((x) => ({ x, k: rand() })).sort((a, b) => a.k - b.k).slice(0, 15).map((y) => y.x);
+
+  const L = [
+    `# Track C rewrite review: r3 (two-stage)\n`,
+    `Stage 1 \`${cfg.rewrite.stage1!.model}\` (facts), Stage 2 \`${rows[0]!.rewriter_model}\` (from facts only), judge \`${j.model}\` ${j.version} (validated: 8/8 fix leaks, 38/40 agreement).\n`,
+    `**Criterion 2 (judge flags under 10% of rewrites, at most ${limit}):** ${notClean.length}/${rows.length} not clean, so **${notClean.length <= limit ? "PASS" : "FAIL"}**.`,
+    `- Rewrite labels: ${fmtCounts(count(labels.map((x) => x.rw!.label)))}.`,
+    `- Stage 1 facts labels: ${fmtCounts(count(labels.map((x) => x.fx!.label)))}. **Leaks already start in Stage 1.**`,
+    `- By variant: ${["terse", "typo", "file_mention", "rambly"].map((v) => `${v}: ${labels.filter((x) => x.r.variant === v && x.rw!.label !== "clean").length}/${labels.filter((x) => x.r.variant === v).length} not clean`).join("; ")}.`,
+    `- Rewrites naming something not in the facts: ${rows.filter((r) => r.names_outside_facts?.length).length}. Typo variant with edits applied in code: ${rows.filter((r) => r.variant === "typo" && r.typo_edits?.length).length}/${rows.filter((r) => r.variant === "typo").length}.\n`,
+    `## Fresh random 15 (new seed)\n`,
+  ];
+  fresh.forEach((x, i) => {
+    L.push(
+      `### ${i + 1}. \`${x.r.id}\`, variant **${x.r.variant}**, judge: rewrite **${x.rw!.label}** / facts **${x.fx!.label}**\n`,
+      `> ${x.r.output.replace(/\n/g, "\n> ")}\n`,
+      x.rw!.evidence ? `Judge evidence (rewrite): "${x.rw!.evidence}"\n` : "",
+      x.fx!.evidence ? `Judge evidence (facts): "${x.fx!.evidence}"\n` : "",
+      x.r.typo_edits?.length ? `Typos (seed ${x.r.typo_seed}): ${x.r.typo_edits.map((e) => `${e.word}→${e.result}`).join(", ")}\n` : "",
+      `<details><summary>Stage 1 facts</summary>\n\n\`\`\`json\n${JSON.stringify(facts.get(x.r.id), null, 2)}\n\`\`\`\n</details>\n`,
+      `<details><summary>Original issue</summary>\n\n\`\`\`text\n${clip(issue.get(x.r.id) ?? "")}\n\`\`\`\n</details>\n`,
+    );
+  });
+  L.push(`## Criterion 3: the 8 tasks flagged by hand in r2, in r3\n`, `| task | variant | r3 rewrite | judge (rewrite / facts) |`, `|---|---|---|---|`);
+  for (const id of R2_HAND_FLAGGED) {
+    const x = labels.find((y) => y.r.id === id);
+    if (x) L.push(`| \`${id}\` | ${x.r.variant} | ${x.r.output.replace(/\|/g, "\\|").replace(/\n/g, " ")} | ${x.rw!.label} / ${x.fx!.label} |`);
+  }
+
+  // Stopping rule (pre-registered): r3 fails -> no r4; exclude every flagged task.
+  const fails = notClean.length > limit;
+  const excluded = fails ? flagged : labels.filter((x) => x.rw!.label === "fix_leak" || x.fx!.label === "fix_leak");
+  const ex = new Set(excluded.map((x) => x.r.id));
+  writeJsonl(EXCLUSIONS_FILE, excluded.map((x) => ({ id: x.r.id, stratum: tasks.get(x.r.id)!.stratum, repo: tasks.get(x.r.id)!.repo, rewrite_label: x.rw!.label, facts_label: x.fx!.label, rule: fails ? "r3 failed: exclude every judge flag" : "r3 passed: exclude fix_leak" })));
+  const strata = [...new Set([...tasks.values()].map((t) => t.stratum))].sort();
+  const repos = [...new Set([...tasks.values()].map((t) => t.repo))].sort();
+  L.push(
+    `\n## Stopping rule applied: ${fails ? "r3 FAILED, so there is no r4 and every flagged task is excluded" : "r3 passed, so fix_leak tasks are excluded"}\n`,
+    `**${ex.size} of ${rows.length} tasks excluded; ${rows.length - ex.size} remain.** Excluded tasks are listed in \`${EXCLUSIONS_FILE}\`. Weights become pool ÷ kept per stratum. The exclusion isn't random (see the bias note below).\n`,
+    `| stratum | kept / selected | excluded | new weight (pool ÷ kept) |`,
+    `|---|---|---|---|`,
+    ...strata.map((s) => {
+      const all = [...tasks.values()].filter((t) => t.stratum === s);
+      const kept = all.filter((t) => !ex.has(t.id)).length;
+      return `| ${s} | ${kept} / ${all.length} | ${all.length - kept} | ${kept ? (all[0]!.pool / kept).toFixed(2) : "—"} |`;
+    }),
+    ``,
+    `| repo | kept / selected | excluded |`,
+    `|---|---|---|`,
+    ...repos.map((r) => {
+      const all = [...tasks.values()].filter((t) => t.repo === r);
+      const kept = all.filter((t) => !ex.has(t.id)).length;
+      return `| ${r} | ${kept} / ${all.length} | ${all.length - kept} |`;
+    }),
+    `\n**Bias note:** the judge treats a requested feature as a fix leak (validation: \`django-13568\`, and several r3 cases like "should support a \`keep_attrs\` kwarg"). So exclusion removes feature-request tasks more often than bug reports.`,
+  );
+  ensureDir("docs");
+  writeFileSync(REVIEW_R3, L.filter((x) => x !== "").join("\n") + "\n");
+  console.log(`Wrote ${REVIEW_R3}; excluded ${ex.size}/${rows.length} -> ${EXCLUSIONS_FILE}`);
+}
