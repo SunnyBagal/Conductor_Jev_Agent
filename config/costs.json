@@ -1,7 +1,17 @@
 {
-  "_note": "FILL THESE IN. Relative cost of running one task at each tier, in any single unit (e.g. average $ per task). Cost numbers are not computed while any value is null. router_overhead is the per-task cost of the router itself (e.g. one Jev call).",
-  "cheap": null,
-  "standard": null,
-  "frontier": null,
-  "router_overhead": 0
+  "_note": "cheap/standard/frontier = relative cost of one task per tier, used by `eval`. Set here to the INPUT price ($/MTok) of Track B's primary ladder (3.5 Haiku / Sonnet 4 / Opus 4). Every listed model's output price is exactly 5x its input price, so these ratios hold for any input/output mix, assuming equal token counts per task. Change them if your tiers map to other models.",
+  "cheap": 0.8,
+  "standard": 3,
+  "frontier": 15,
+  "router_overhead": 0,
+  "price_source": "https://platform.claude.com/docs/en/about-claude/pricing",
+  "price_retrieved": "2026-09-27",
+  "prices_usd_per_mtok": {
+    "claude-3-5-haiku": { "input": 0.8, "output": 4 },
+    "claude-sonnet-4": { "input": 3, "output": 15 },
+    "claude-opus-4": { "input": 15, "output": 75 },
+    "claude-haiku-4-5": { "input": 1, "output": 5 },
+    "claude-sonnet-4-5": { "input": 3, "output": 15 },
+    "claude-opus-4-5": { "input": 5, "output": 25 }
+  }
 }
