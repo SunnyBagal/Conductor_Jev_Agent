@@ -9,6 +9,8 @@ const cfg: TrackCConfig = {
   allocation: { A_haiku_easy: 4, A_haiku_hard: 0, B_sonnet: 10, C_opus: 0, D_none_easy: 0, D_none_hard: 0 },
   pilot_per_group: { A_haiku_easy: 1, A_haiku_hard: 0, B_sonnet: 2, C_opus: 0, D_none_easy: 0, D_none_hard: 0 },
   rewrite: { prompt_version: "r1", max_tokens: 100, instruction: "x".repeat(30) },
+  tier_order: ["cheap", "standard", "top", "ceiling"],
+  attempts: 3,
 };
 
 const pool = [

@@ -17,6 +17,10 @@ export const TrackCConfigSchema = z.object({
   allocation: z.record(z.enum(STRATA), z.number().int().min(0)),
   pilot_per_group: z.record(z.enum(STRATA), z.number().int().min(0)),
   rewrite: z.object({ prompt_version: z.string(), max_tokens: z.number().int().positive(), instruction: z.string().min(20) }),
+  tier_order: z.array(z.string()).min(2).default(["cheap", "standard", "top", "ceiling"]),
+  attempts: z.number().int().min(1).default(3),
+  control_arm: z.object({ tier: z.string(), attempts: z.number().int().min(1) }).loose().optional(),
+  blind_review: z.object({ n: z.number().int().positive(), seed: z.number().int(), models: z.tuple([z.string(), z.string()]) }).optional(),
 });
 export type TrackCConfig = z.infer<typeof TrackCConfigSchema>;
 

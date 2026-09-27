@@ -15,10 +15,29 @@
     "D_none_easy": 10,
     "D_none_hard": 40
   },
-  "pilot_per_group": { "A_haiku_easy": 2, "A_haiku_hard": 2, "B_sonnet": 2, "C_opus": 2, "D_none_easy": 1, "D_none_hard": 1 },
+  "pilot_per_group": {
+    "A_haiku_easy": 2,
+    "A_haiku_hard": 2,
+    "B_sonnet": 2,
+    "C_opus": 2,
+    "D_none_easy": 1,
+    "D_none_hard": 1
+  },
   "rewrite": {
     "prompt_version": "r1",
     "max_tokens": 400,
     "instruction": "Rewrite this bug report as the short message a developer would type to a coding agent. 1–3 sentences, casual, may be vague or have typos, can mention a file or function name if a developer would know it. Do NOT say how hard it is, do NOT hint at severity or effort, do NOT include the solution. Output only the message."
+  },
+  "tier_order": ["cheap", "standard", "top", "ceiling"],
+  "attempts": 3,
+  "control_arm": {
+    "tier": "standard",
+    "attempts": 3,
+    "_note": "Pilot only: Sonnet 5 on the ORIGINAL issue text, to measure what the casual rewrite loses."
+  },
+  "blind_review": {
+    "n": 15,
+    "seed": 515,
+    "models": ["top", "ceiling"]
   }
 }
