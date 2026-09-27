@@ -181,3 +181,12 @@ Where these conflict with the section above, this amendment takes precedence.
 - **If r3 fails any criterion, there is no r4.** Every task the judge flags (rewrite or Stage 1 JSON not clean) is **excluded**, the exclusions are reported per stratum and per repo, and the run continues with the rest.
   - The exclusion isn't random (issues that propose fixes are more likely to be dropped), which is a known bias. The report notes it, and weights are recomputed as pool ÷ kept per stratum.
 - **If r3 passes,** the flagged tasks are still reported, and `fix_leak` tasks are still excluded, because a leaked fix contaminates that task's label whatever the overall rate. *(This addition is mine; you can veto it.)*
+
+### r3 result (2026-09-28): FAILED, so the stopping rule was applied (no r4)
+- **Criterion 2: FAIL.** The judge rates 86 of 200 r3 rewrites not clean (limit 19): 26 fix leaks, 37 cause hints, 9 location hints, 14 missing reproductions.
+- **Stage 1 facts leak too:** 23 contain a fix leak and 22 a location hint. The extraction step often restates a proposed fix as "expected behaviour".
+- **By variant:** rambly is worst (30 of 51 not clean).
+- **Criterion 3:** 4 of the 8 tasks flagged by hand in r2 are still flagged.
+- **Stopping rule:** 92 of 200 tasks are excluded (rewrite or facts flagged), leaving 108. The breakdown per stratum and repo is in `docs/trackc_rewrite_review_r3.md`, and the list in `data/trackc_exclusions.jsonl`.
+- **Known bias:** the judge counts requested features as fix leaks, so feature-request tasks are excluded more often.
+- **Budget:** the full-200 r3 run and the $4.55 Opus judging run finished *before* the user's $1.50 cap arrived. From here on, spend is enforced in code (`src/budget.ts`).
