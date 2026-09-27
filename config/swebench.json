@@ -1,11 +1,17 @@
 {
-  "_note": "Track B. FILL IN `tiers` with submission folder names from https://github.com/SWE-bench/experiments/tree/main/evaluation/verified that have results/results.json. Prefer submissions that share one agent scaffold, so tier differences reflect the model and not the agent.",
+  "_note": "Track B tiers. Chosen 2026-09-27 as one agent scaffold (Anthropic's reference 'tools' harness) across a Haiku -> Sonnet -> Opus ladder, so tier differences reflect the model, not the agent. Edit freely; any submission under evaluation/verified with results/results.json works.",
   "split": "verified",
-  "sample": 100,
+  "sample": 500,
   "seed": 7,
   "tiers": {
-    "cheap": [],
-    "standard": [],
-    "frontier": []
+    "cheap": [
+      "20241022_tools_claude-3-5-haiku"
+    ],
+    "standard": [
+      "20250522_tools_claude-4-sonnet"
+    ],
+    "frontier": [
+      "20250522_tools_claude-4-opus"
+    ]
   }
 }
