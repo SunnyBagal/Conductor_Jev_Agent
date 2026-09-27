@@ -22,6 +22,11 @@ export const PromptRowSchema = z.object({
   instruction_sha256: z.string(),
   input_sha256: z.string(),
   output: z.string().min(1),
+  /** Style variant whose line was appended to the system prompt (r2+). */
+  variant: z.string().nullable().default(null),
+  /** "rejected" rows are kept for the record and never used downstream. */
+  status: z.enum(["active", "rejected"]).default("active"),
+  rejected_reason: z.string().optional(),
   stop_reason: z.string().nullable(),
   usage: z.object({ input_tokens: z.number(), output_tokens: z.number() }),
   created_at: z.string(),
@@ -36,6 +41,9 @@ export interface RewriterSettings {
   maxTokens: number;
   instruction: string;
 }
+
+/** The system prompt for one task: the fixed instruction plus that task's style line, if any. */
+export const instructionFor = (base: string, variantLine: string | null) => (variantLine ? `${base}\n\n${variantLine}` : base);
 
 /** One rewrite. Input is the issue text only. */
 export async function rewriteIssue(client: Anthropic, issueText: string, s: RewriterSettings) {
@@ -62,20 +70,26 @@ export async function runRewrite(
   cfg: TrackCConfig,
   rewriter: { id: string; temperature: number },
   o: { concurrency: number; limit?: number },
+  variantOf: Map<string, string> = new Map(),
 ) {
-  const settings: RewriterSettings = { model: rewriter.id, temperature: rewriter.temperature, maxTokens: cfg.rewrite.max_tokens, instruction: cfg.rewrite.instruction };
-  const instrHash = sha256(settings.instruction);
+  const base: RewriterSettings = { model: rewriter.id, temperature: rewriter.temperature, maxTokens: cfg.rewrite.max_tokens, instruction: cfg.rewrite.instruction };
+  const styles = cfg.rewrite.style_variants ?? {};
+  if (Object.keys(styles).length && tasks.some((t) => !variantOf.has(t.id))) throw new Error("style variants configured but some tasks have no assigned variant");
   const done = new Set(
     (existsSync(PROMPTS_FILE) ? readJsonl(PROMPTS_FILE, PromptRowSchema) : [])
-      .filter((r) => r.prompt_version === cfg.rewrite.prompt_version && r.rewriter_model === settings.model && r.instruction_sha256 === instrHash)
+      .filter((r) => r.prompt_version === cfg.rewrite.prompt_version && r.rewriter_model === base.model)
       .map((r) => r.id),
   );
   const todo = tasks.filter((t) => !done.has(t.id)).slice(0, o.limit ?? Infinity);
-  console.log(`Rewriting ${todo.length} task(s) with ${settings.model} @ T=${settings.temperature}, prompt ${cfg.rewrite.prompt_version} (${done.size} already done).`);
+  console.log(`Rewriting ${todo.length} task(s) with ${base.model} @ T=${base.temperature}, prompt ${cfg.rewrite.prompt_version} (${done.size} already done).`);
   const client = new Anthropic();
   const res = await runPool(todo, o.concurrency, async (t) => {
     const text = issueText.get(t.id);
     if (text === undefined) throw new Error(`${t.id}: no issue text`);
+    const variant = variantOf.get(t.id) ?? null;
+    const variantLine = variant === null ? null : (styles[variant] ?? null);
+    if (variant !== null && variantLine === null) throw new Error(`${t.id}: unknown variant "${variant}"`);
+    const settings = { ...base, instruction: instructionFor(base.instruction, variantLine) };
     const r = await rewriteIssue(client, text, settings);
     const row: PromptRow = {
       id: t.id,
@@ -83,9 +97,11 @@ export async function runRewrite(
       response_model: r.model,
       temperature: settings.temperature,
       prompt_version: cfg.rewrite.prompt_version,
-      instruction_sha256: instrHash,
+      instruction_sha256: sha256(settings.instruction),
       input_sha256: sha256(text),
       output: r.text,
+      variant,
+      status: "active",
       stop_reason: r.stop_reason,
       usage: r.usage,
       created_at: new Date().toISOString(),

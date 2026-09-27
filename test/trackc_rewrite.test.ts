@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type Anthropic from "@anthropic-ai/sdk";
-import { rewriteIssue } from "../src/trackc/rewrite.ts";
+import { instructionFor, rewriteIssue } from "../src/trackc/rewrite.ts";
 
 function stub(reply: { text?: string; stop_reason?: string }) {
   const calls: unknown[] = [];
@@ -38,4 +38,12 @@ test("rewriteIssue rejects refusals, truncation and empty output", async () => {
   await assert.rejects(rewriteIssue(stub({ text: "x", stop_reason: "refusal" }).client, "i", s), /refused/);
   await assert.rejects(rewriteIssue(stub({ text: "x", stop_reason: "max_tokens" }).client, "i", s), /max_tokens/);
   await assert.rejects(rewriteIssue(stub({}).client, "i", s), /empty/);
+});
+
+test("the task's style line reaches the rewriter's system prompt", async () => {
+  const { client, calls } = stub({ text: "ok" });
+  const instruction = instructionFor("Base rules.", "Style for this message: terse.");
+  await rewriteIssue(client, "issue", { ...s, instruction });
+  assert.equal((calls[0] as { system: string }).system, "Base rules.\n\nStyle for this message: terse.");
+  assert.equal(instructionFor("Base rules.", null), "Base rules.");
 });
