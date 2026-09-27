@@ -114,9 +114,9 @@ export function runReport(p: Paths, costs: FilledCosts | null, final: boolean) {
   else {
     L.push(`${sweep.grid_size} threshold settings tried on ${sweep.n} tune tasks. Rule: cheapest setting with under-routing ≤ ${(sweep.max_under_routing * 100).toFixed(0)}%. Spend = ${sweep.spend_measure}.\n`);
     L.push(`Chosen: \`${JSON.stringify(sweep.best.params)}\` → under-routed ${fmt(sweep.best.under)}, exact ${fmt(sweep.best.correct)}, spend ${sweep.best.spend.toFixed(3)}.\n`);
-    L.push(`| spend | under-routed | exact | key thresholds (risky / destructive / task_type_conf / scope_conf) |`, `|---|---|---|---|`);
+    L.push(`| spend | under-routed | exact | uncertainty rule | key thresholds (risky / destructive / task_type_conf / scope_conf) |`, `|---|---|---|---|---|`);
     for (const q of sweep.pareto.slice(0, 15))
-      L.push(`| ${q.spend.toFixed(3)} | ${fmt(q.under)} | ${fmt(q.correct)} | ${q.params.risky} / ${q.params.destructive} / ${q.params.task_type_conf} / ${q.params.scope_conf} |`);
+      L.push(`| ${q.spend.toFixed(3)} | ${fmt(q.under)} | ${fmt(q.correct)} | ${q.params.mass_coverage ? `credible set ${q.params.mass_coverage}` : "confidence"} | ${q.params.risky} / ${q.params.destructive} / ${q.params.task_type_conf} / ${q.params.scope_conf} |`);
     const baselinePts = (tuneEval?.results ?? [])
       .filter((r) => r.router !== "jev")
       .map((r) => ({ spend: spend(r.metrics), under: rate(r.metrics.under), label: r.router }));
