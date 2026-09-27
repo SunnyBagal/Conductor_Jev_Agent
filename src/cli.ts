@@ -21,6 +21,9 @@ Commands
   trackc-select   Track C stratified task sample -> data/trackc_tasks.jsonl (refuses to overwrite)
   trackc-variants assign style variants per task (fixed seed) -> data/trackc_variants.jsonl
   trackc-rewrite  casual prompt per task (issue text only) -> data/trackc_prompts.jsonl (resumable)
+  trackc-judge-validate  validate the r3 judge on frozen hand labels (must catch every fix leak)
+  trackc-r3       two-stage rewrite (facts -> casual) for all tasks -> data/trackc_prompts.jsonl
+  trackc-judge    judge every r3 rewrite and Stage 1 facts JSON
   trackc-review   15 random rewrites next to originals -> docs/trackc_rewrite_review.md
   all         split (if missing) -> route -> baselines -> sweep -> eval -> report
 
@@ -117,6 +120,15 @@ async function main() {
       break;
     case "trackc-select":
       await (await import("./trackc/index.ts")).runSelect(values.force);
+      break;
+    case "trackc-judge-validate":
+      await (await import("./trackc/r3.ts")).runJudgeValidate({ concurrency });
+      break;
+    case "trackc-r3":
+      await (await import("./trackc/r3.ts")).runR3({ concurrency, limit });
+      break;
+    case "trackc-judge":
+      await (await import("./trackc/r3.ts")).runJudgeAll({ concurrency });
       break;
     case "trackc-variants":
       (await import("./trackc/index.ts")).runVariants(values.force);
