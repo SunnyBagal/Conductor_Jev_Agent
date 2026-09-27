@@ -61,14 +61,15 @@ Ground truth is which model actually solved each task. Thresholds were tuned on 
 ## For a product like Conductor
 Conductor runs Claude Code, Codex and other agents in cloud sandboxes, often for hours, on the user's own keys or subscriptions. An under-routed task wastes a whole agent run plus the developer's review time, which costs far more than the tokens saved.
 
-1. **Don't ship a Jev tier router as the default yet.** On this data, "always standard" is better.
-2. **Use Jev as a risk gate on top of standard:** send auth, payments, migrations, infra, data-deletion and git-history prompts to the top model, and use standard for everything else. This is where the risk-gate questions earn their keep, and at $0.10 per 1,000 tasks and ~0.3 s it adds nothing noticeable.
-3. **Save money with try-then-escalate, not prediction:** for tasks Jev calls easy, run the cheap model first and escalate if the tests fail. Conductor already runs agents in parallel, so this fits the product.
-4. **Re-check on real Conductor prompts.** SWE-bench issues are long bug reports; Conductor prompts are short and casual. Your labeled set will decide it.
+1. **Pick the default model by measured cost per task, not price per token.** With current models, the top model can cost about the same per task and solve more (Opus 4.5: +15% cost, +28 solved of 500).
+2. **Don't ship Jev as an automatic tier picker yet.** On the modern ladder it beat always-standard by a hair (1 vs 7 under-routed of 190, 5% cheaper), but that's inside the error bars and on data I had already looked at. On the older ladder it lost.
+3. **Keep Jev's risk gate as a safety feature, not a quality one.** It's cheap (~0.3 s, $0.10 per 1,000 tasks), but SWE-bench can't show it helps. Judge it on real Conductor prompts that touch auth, payments or migrations.
+4. **Offer try-cheap-first only where failures are cheap to detect,** such as tasks with tests. Applied everywhere, it costs more (1.35×) and adds wait time.
+5. **Re-check on real Conductor prompts.** Your labeled set is the only held-out test that hasn't been looked at.
 
 ## What you do next
 1. Add your prompts to `data/tasks.jsonl` and your labels to `data/labels.csv` (columns: `id,prompt,label,sure`).
-2. Fill in `config/costs.json`.
+2. Check that `config/costs.json` matches the models your tiers actually use.
 3. Run `npm run cli -- split`, then `DECIDER=typesafe npm run cli -- all`.
 4. Read `reports/report.md` (tune set). If you change thresholds, copy the sweep's pick into `config/thresholds.json` and commit.
 5. When you're done tuning: `npm run cli -- eval --final && npm run cli -- report --final`.
@@ -76,4 +77,4 @@ Conductor runs Claude Code, Codex and other agents in cloud sandboxes, often for
 ## Things to know
 - **OpenRouter:** Jev isn't listed there, and the SDK only talks TypeSafe's own API. `TYPESAFE_BASE_URL` works, but only for a host that serves that API.
 - **Risk questions are split up:** "risky area" became 5 separate yes/no questions and "destructive" became 3, as the TypeSafe docs recommend. They're combined in code.
-- **Track B caveats:** each model got one attempt, the models are older (3.5 Haiku is much weaker than current Haiku), and SWE-bench issues don't look like agent prompts. Treat the numbers as a rough signal.
+- **Track B caveats:** each model got one attempt, measured cost comes from one agent (mini-SWE-agent, high reasoning), and SWE-bench issues don't look like agent prompts. Treat the numbers as a rough signal.
