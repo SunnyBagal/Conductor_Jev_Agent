@@ -105,7 +105,7 @@ async function main() {
       await (await import("./label.ts")).runLabel(p, { concurrency, limit });
       break;
     case "swebench":
-      await (await import("./swebench.ts")).runSwebench(p, loadSwebenchConfig(), th.policy, { concurrency, limit });
+      await (await import("./swebench.ts")).runSwebench(p, loadSwebenchConfig(), th.policy, costs, { concurrency, limit });
       break;
     case "all":
       if (values["dry-run"]) {

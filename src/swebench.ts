@@ -13,13 +13,14 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
-import type { PolicyThresholds, SwebenchConfig } from "./config.ts";
+import type { FilledCosts, PolicyThresholds, SwebenchConfig } from "./config.ts";
 import { ensureDir, readJsonl, TIERS, tierIndex, writeJson, writeJsonl, type Paths, type Tier } from "./data.ts";
 import { makeDecider } from "./decider.ts";
-import { decide } from "./policy.ts";
+import { decide, type JevAnswers } from "./policy.ts";
 import { runPool } from "./pool.ts";
 import { rng } from "./split.ts";
-import { fmt, type Count } from "./metrics.ts";
+import { computeMetrics, fmt, overhead, type Count, type Pair } from "./metrics.ts";
+import { JEV_USD_PER_MTOK_INPUT } from "./questions.ts";
 
 const CACHE = "data/swebench";
 const HF = "https://datasets-server.huggingface.co/rows?dataset=SWE-bench%2FSWE-bench_Verified&config=default&split=test";
@@ -72,7 +73,35 @@ export function cheapestResolvingTier(id: string, resolvedByTier: Record<Tier, S
   return null;
 }
 
-export async function runSwebench(p: Paths, cfg: SwebenchConfig, policy: PolicyThresholds, o: { concurrency: number; limit?: number }) {
+/** Uncertainty rules compared on the same Jev answers: the configured one plus alternatives. */
+export const RULE_VARIANTS = [0, 0.7, 0.8, 0.9] as const;
+export const ruleName = (c: number) => (c ? `credible set ${c}` : "confidence round-up");
+
+/**
+ * Score each uncertainty rule against the cheapest tier that actually resolved each instance
+ * (unsolved instances excluded). All other thresholds stay as configured.
+ */
+export function compareRules(
+  rows: readonly { id: string; answers: JevAnswers; cheapest: Tier | null }[],
+  policy: PolicyThresholds,
+  costs: FilledCosts | null,
+) {
+  const solved = rows.filter((r) => r.cheapest !== null);
+  return RULE_VARIANTS.map((c) => {
+    const t = { ...policy, mass_coverage: c };
+    const pairs: Pair[] = solved.map((r) => ({ id: r.id, routed: decide(r.answers, t).tier, label: r.cheapest!, sure: "yes", confidence: null }));
+    const m = computeMetrics(pairs, costs);
+    return { rule: ruleName(c), mass_coverage: c, under: m.under, exact: m.correct, over: m.over, distribution: m.distribution, mean_tier_rank: m.meanTierRank, relative_cost: m.relativeCost };
+  });
+}
+
+export async function runSwebench(
+  p: Paths,
+  cfg: SwebenchConfig,
+  policy: PolicyThresholds,
+  costs: FilledCosts | null,
+  o: { concurrency: number; limit?: number },
+) {
   if (TIERS.some((t) => cfg.tiers[t].length === 0))
     throw new Error("config/swebench.json: list at least one submission per tier under `tiers` (Track B is skipped until then).");
 
@@ -94,7 +123,17 @@ export async function runSwebench(p: Paths, cfg: SwebenchConfig, policy: PolicyT
   const res = await runPool(sample, o.concurrency, async (inst) => {
     const r = await decider.decide({ id: inst.instance_id, prompt: inst.problem_statement, source: "swebench" });
     const d = decide(r.answers, policy);
-    return { id: inst.instance_id, jev: d.tier, reason: d.reason, model: r.model, difficulty: inst.difficulty, cheapest: cheapestResolvingTier(inst.instance_id, resolvedByTier) };
+    return {
+      id: inst.instance_id,
+      jev: d.tier,
+      reason: d.reason,
+      model: r.model,
+      difficulty: inst.difficulty,
+      cheapest: cheapestResolvingTier(inst.instance_id, resolvedByTier),
+      answers: r.answers,
+      usage: r.usage,
+      latency_ms: r.latency_ms,
+    };
   });
   const rows = res.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
   const failed = res.length - rows.length;
@@ -121,6 +160,8 @@ export async function runSwebench(p: Paths, cfg: SwebenchConfig, policy: PolicyT
     over: c((r) => tierIndex(r.jev) > tierIndex(r.cheapest!)),
     cheapest_distribution: Object.fromEntries(TIERS.map((t) => [t, c((r) => r.cheapest === t)])),
     jev_tier_by_human_difficulty: byDifficulty,
+    rules: compareRules(rows, policy, costs),
+    overhead: overhead(rows, JEV_USD_PER_MTOK_INPUT),
     submissions: cfg.tiers,
     models: [...new Set(rows.map((r) => r.model))],
   };
