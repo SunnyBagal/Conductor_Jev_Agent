@@ -24,6 +24,11 @@ export const AttemptSchema = z.object({
   input_tokens: z.number().nullable().default(null),
   output_tokens: z.number().nullable().default(null),
   wall_s: z.number().nullable().default(null),
+  /** The --fallback-model value used for this run. Must be null (flag never passed). */
+  fallback_model: z.string().nullable().default(null),
+  /** Where cost_usd came from: Claude Code's own total_cost_usd, a token-price estimate, or nothing. */
+  cost_source: z.enum(["claude_code", "estimate", "none"]).default("none"),
+  launch_command: z.string().optional(),
   error: z.string().optional(),
   harness_version: z.string().optional(),
   started_at: z.string(),
@@ -107,6 +112,8 @@ export interface ModelReport {
   /** Pass-count distribution over tasks with exactly `attempts` valid attempts. */
   dist: number[];
   distN: number;
+  /** PRIMARY consistency: tasks passed 3/3 among tasks passed at least once (full-attempt tasks only). */
+  allGivenAny: { k: number; n: number };
   undetermined: number;
   refused: number;
   fallback: number;
@@ -125,6 +132,7 @@ export function modelReport(all: Map<string, Map<string, Cell>>, tier: string, a
     all: { k: det.filter((c) => c.all).length, n: det.length },
     dist,
     distN: full.length,
+    allGivenAny: { k: dist[attempts]!, n: dist.slice(1).reduce((x, y) => x + y, 0) },
     undetermined: cs.length - det.length,
     refused: cs.reduce((s, c) => s + c.refused, 0),
     fallback: cs.reduce((s, c) => s + c.fallback, 0),
@@ -151,7 +159,8 @@ function lchoose(n: number, k: number): number {
   return s;
 }
 
-export function consistencyTest(all: Map<string, Map<string, Cell>>, a: string, b: string, attempts: number, alpha = 0.05) {
+/** SECONDARY (original pre-registration): inconsistent = passed 1/3 or 2/3, on tasks with full attempts for both. */
+export function inconsistencyTest(all: Map<string, Map<string, Cell>>, a: string, b: string, attempts: number, alpha = 0.05) {
   const incons = (c: Cell) => c.passes > 0 && c.passes < attempts;
   let n = 0, aOnlyConsistent = 0, bOnlyConsistent = 0, aIncons = 0, bIncons = 0;
   for (const m of all.values()) {
@@ -166,6 +175,65 @@ export function consistencyTest(all: Map<string, Map<string, Cell>>, a: string, 
   const discordant = aOnlyConsistent + bOnlyConsistent;
   const p = signTestP(aOnlyConsistent, discordant);
   return { n, aIncons, bIncons, aOnlyConsistent, bOnlyConsistent, discordant, p, supported: p < alpha && aOnlyConsistent > bOnlyConsistent };
+}
+
+export type Verdict = "supported" | "not supported" | `inconclusive — ${number} discordant tasks`;
+
+/**
+ * PRIMARY paired test (amendment 1): tasks where both models have full attempts and each passed
+ * at least once. Discordant = exactly one of them passed every attempt. Unweighted sign test.
+ * Fewer than `minDiscordant` discordant tasks -> "inconclusive — N discordant tasks".
+ */
+export function consistencyTest(all: Map<string, Map<string, Cell>>, a: string, b: string, attempts: number, minDiscordant: number, alpha = 0.05) {
+  let n = 0, aOnly = 0, bOnly = 0, both = 0;
+  for (const m of all.values()) {
+    const ca = m.get(a), cb = m.get(b);
+    if (!ca || !cb || ca.valid !== attempts || cb.valid !== attempts || ca.passes === 0 || cb.passes === 0) continue;
+    n++;
+    const fa = ca.passes === attempts, fb = cb.passes === attempts;
+    if (fa && fb) both++;
+    else if (fa) aOnly++;
+    else if (fb) bOnly++;
+  }
+  const discordant = aOnly + bOnly;
+  const p = signTestP(aOnly, discordant);
+  const verdict: Verdict =
+    discordant < minDiscordant ? `inconclusive — ${discordant} discordant tasks` : p < alpha && aOnly > bOnly ? "supported" : "not supported";
+  return { n, both, aOnly, bOnly, discordant, p, verdict };
+}
+
+// ---------------------------------------------------------------------------
+// Cascade labeling (amendment 1)
+// ---------------------------------------------------------------------------
+
+/**
+ * The attempts the cascade design would have run: cheapest tier everywhere; the next tier only
+ * where the previous one passed fewer than `gate` times; the last two tiers (top and ceiling)
+ * together, once the second tier falls short. Control-arm attempts are kept as-is.
+ */
+export function cascadePrune(attempts: readonly Attempt[], order: readonly string[], gate: number): Attempt[] {
+  const [t0, t1, ...rest] = order;
+  const passes = (task: string, tier: string) => attempts.filter((a) => a.arm === "casual" && a.task_id === task && a.tier === tier && a.status === "pass").length;
+  return attempts.filter((a) => {
+    if (a.arm !== "casual" || a.tier === t0) return true;
+    const cheapShort = passes(a.task_id, t0!) < gate;
+    if (a.tier === t1) return cheapShort;
+    if (rest.includes(a.tier)) return cheapShort && passes(a.task_id, t1!) < gate;
+    return false;
+  });
+}
+
+/** Labels under the full grid vs the cascade-pruned grid. Should never differ; any row is a bug. */
+export function cascadeLabelMismatches(attempts: readonly Attempt[], order: readonly string[], gate: number) {
+  const full = cells(attempts);
+  const pruned = cells(cascadePrune(attempts, order, gate));
+  const out: { task: string; rule: "majority" | "all"; full: Label; cascade: Label }[] = [];
+  for (const [task, byTier] of full)
+    for (const rule of ["majority", "all"] as const) {
+      const f = label(byTier, order, rule), c = label(pruned.get(task) ?? new Map(), order, rule);
+      if (f.tier !== c.tier || f.uncertain !== c.uncertain) out.push({ task, rule, full: f, cascade: c });
+    }
+  return out;
 }
 
 // ---------------------------------------------------------------------------
