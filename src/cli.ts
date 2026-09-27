@@ -9,6 +9,7 @@ const HELP = `jev-router-eval: does TypeSafe's Jev route coding-agent prompts to
 Usage: npm run cli -- <command> [options]
 
 Commands
+  import-labels   build data/tasks.jsonl from data/labels.csv (Track A)
   split       stratified tune/test split -> <data-dir>/split.json (refuses to overwrite)
   route       run Jev over tasks -> runs/jev.jsonl
   baselines   length / keyword / constant baselines (+ --with-llm) -> runs/*.jsonl
@@ -94,6 +95,9 @@ async function main() {
   const report = async () => (await import("./report.ts")).runReport(p, costs, values.final);
 
   switch (cmd) {
+    case "import-labels":
+      (await import("./tracka.ts")).importLabels(p);
+      break;
     case "split":
       await split(values.force, values.extend);
       break;
@@ -150,7 +154,13 @@ async function main() {
         await route();
         break;
       }
-      if (!existsSync(p.split)) await split(false, false);
+      if (!existsSync(p.split)) {
+        await split(false, false);
+        if (p.dataDir === "data") {
+          console.log(`\nSplit written. Commit it before routing:\n  git add ${p.split} ${p.labels} ${p.tasks} && git commit -m "Track A split"\nthen run \`all\` again.`);
+          break;
+        }
+      }
       await route();
       if (process.exitCode) throw new Error("route had failures; stopping before eval.");
       await baselines();
