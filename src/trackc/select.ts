@@ -21,6 +21,13 @@ export const TrackCConfigSchema = z.object({
   attempts: z.number().int().min(1).default(3),
   control_arm: z.object({ tier: z.string(), attempts: z.number().int().min(1) }).loose().optional(),
   blind_review: z.object({ n: z.number().int().positive(), seed: z.number().int(), models: z.tuple([z.string(), z.string()]) }).optional(),
+  full_run_design: z.object({ mode: z.enum(["cascade", "grid"]), gate_passes: z.number().int().min(1) }).loose().optional(),
+  consistency: z.object({ min_discordant: z.number().int().min(1), alpha: z.number().gt(0).lt(1), weighted: z.boolean() }).loose().optional(),
+  agent: z.object({ fallback_model: z.null(), pin_env: z.array(z.string()), disallowed_tools: z.array(z.string()) }).loose().optional(),
+  compute: z
+    .object({ usd_per_core_second: z.number(), usd_per_gib_second: z.number(), assumed_cores: z.number(), assumed_gib: z.number(), source: z.string() })
+    .loose()
+    .optional(),
 });
 export type TrackCConfig = z.infer<typeof TrackCConfigSchema>;
 

@@ -39,5 +39,32 @@
     "n": 15,
     "seed": 515,
     "models": ["top", "ceiling"]
+  },
+  "full_run_design": {
+    "mode": "cascade",
+    "gate_passes": 3,
+    "_note": "Haiku x3 everywhere; Sonnet x3 where Haiku < 3/3; Opus 5.5 x3 and Fable 5.1 x3 where Sonnet < 3/3. Pilot is a full grid."
+  },
+  "consistency": {
+    "min_discordant": 20,
+    "alpha": 0.05,
+    "weighted": false,
+    "_note": "Primary: 3/3 among tasks passed >= 1 time. N_min=20 gives 80% power for a 4:1 split (two-sided sign test)."
+  },
+  "agent": {
+    "harness": "harbor",
+    "agent": "claude-code",
+    "fallback_model": null,
+    "disallowed_tools": ["WebSearch", "WebFetch"],
+    "pin_env": ["ANTHROPIC_MODEL", "ANTHROPIC_DEFAULT_HAIKU_MODEL", "ANTHROPIC_DEFAULT_SONNET_MODEL", "ANTHROPIC_DEFAULT_OPUS_MODEL", "ANTHROPIC_SMALL_FAST_MODEL", "CLAUDE_CODE_SUBAGENT_MODEL"],
+    "_note": "Never pass --fallback-model. Every pin_env var is set to the tier's model id for each run."
+  },
+  "compute": {
+    "provider": "modal-sandbox",
+    "usd_per_core_second": 3.942e-05,
+    "usd_per_gib_second": 6.67e-06,
+    "assumed_cores": 1,
+    "assumed_gib": 4,
+    "source": "https://modal.com/pricing (Sandboxes, retrieved 2026-09-27)"
   }
 }
