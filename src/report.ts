@@ -57,7 +57,8 @@ export function runReport(p: Paths, costs: FilledCosts | null, final: boolean) {
   if (!e) throw new Error(`${join(p.runsDir, `eval_${set}.json`)} not found. Run \`eval${final ? " --final" : ""}\` first.`);
   const tuneEval = readJ<EvalResult>(join(p.runsDir, "eval_tune.json"));
   const sweep = readJ<{ n: number; spend_measure: string; max_under_routing: number; grid_size: number; best: { params: Record<string, number>; under: Count; correct: Count; spend: number }; pareto: { params: Record<string, number>; under: Count; correct: Count; spend: number }[] }>(join(p.runsDir, "sweep.json"));
-  const swe = readJ<Record<string, unknown> & { sampled: number; unsolved_by_any_tier: Count; under: Count; exact: Count; over: Count; cheapest_distribution: Record<string, Count>; jev_tier_by_human_difficulty: Record<string, Record<string, number>>; submissions: Record<string, string[]>; models: string[] }>(join(p.runsDir, "swebench_eval.json"));
+  type RuleRow = { rule: string; under: Count; exact: Count; over: Count; mean_tier_rank: number; relative_cost: number | null };
+  const swe = readJ<Record<string, unknown> & { rules?: RuleRow[]; sampled: number; unsolved_by_any_tier: Count; under: Count; exact: Count; over: Count; cheapest_distribution: Record<string, Count>; jev_tier_by_human_difficulty: Record<string, Record<string, number>>; submissions: Record<string, string[]>; models: string[] }>(join(p.runsDir, "swebench_eval.json"));
   const meta = readJ<{ length_cutoffs: number[] }>(join(p.runsDir, "baselines_meta.json"));
   const prompts = new Map(loadTasks(p).map((t) => [t.id, t.prompt]));
   const jev = e.results.find((r) => r.router === "jev")!;
@@ -148,6 +149,12 @@ export function runReport(p: Paths, costs: FilledCosts | null, final: boolean) {
       `|---|${TIERS.map(() => "---").join("|")}|`,
       ...Object.entries(swe.jev_tier_by_human_difficulty).map(([d, c]) => `| ${d} | ${TIERS.map((t) => c[t] ?? 0).join(" | ")} |`),
     );
+    if (swe.rules?.length) {
+      L.push(`\nUncertainty rules on the same Jev answers (solved instances; other thresholds as configured):\n`);
+      L.push(`| rule | under-routed ↓ | exact | over-routed | spend |`, `|---|---|---|---|---|`);
+      for (const r of swe.rules)
+        L.push(`| ${r.rule} | ${fmt(r.under)} ${fmtCI(r.under)} | ${fmt(r.exact)} | ${fmt(r.over)} | ${r.relative_cost === null ? `rank ${r.mean_tier_rank.toFixed(2)}` : r.relative_cost.toFixed(3)} |`);
+    }
   }
 
   L.push(`\n## Limitations\n`);
