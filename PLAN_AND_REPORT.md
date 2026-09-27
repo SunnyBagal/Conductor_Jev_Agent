@@ -48,7 +48,7 @@ Rewriting SWE-bench issues into casual prompts kept leaking the fix, even with a
 
 ## Track D: next steps (you run the agents)
 Protocol: [`docs/trackd_protocol.md`](docs/trackd_protocol.md).
-1. `trackd-add-task` for each of 10–15 real tasks (register **all** of them before any run).
+1. `trackd-add-task` for each of 10–15 real tasks (register **all** of them before any run), each with either `--test-cmd` or a manual check (`--step` … `--expected`). Manual-check tasks are marked in the report.
 2. `DECIDER=typesafe npm run cli -- trackd-jev`, then commit `data/trackd_jev.jsonl`.
 3. Run the cascade yourself in Claude Code: Haiku, then Sonnet, then Opus. Log each attempt with `trackd-log`.
 4. `trackd-report` produces a counts-only comparison with limitations.
