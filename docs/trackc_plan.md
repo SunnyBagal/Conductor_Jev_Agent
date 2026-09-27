@@ -146,3 +146,10 @@ Where these conflict with the section above, this amendment takes precedence.
   2. **Audit flags under 10% across all 200** (at most 19). The audit is frozen at its current version (`src/trackc/audit.ts` at this commit) and won't be changed after seeing r2.
   3. **You check 10 random tasks the r1 audit flagged,** shown in their r2 version: the fix should be gone and any reproduction kept.
 - **If r2 fails,** I stop and show the failures. I won't change the prompt on my own.
+
+### r2 result (2026-09-28): FAILED, waiting for your decision (the prompt was not changed)
+- **Criterion 1: FAIL.** In the fresh 15, 3 rewrites leak the fix (`django-13401`, `django-12663`, `django-11141`; the limit was 0) and 4 give cause or location hints (`django-11211`, `django-15280`, `django-11734`, `matplotlib-23476`; the limit was 2).
+- **Criterion 2: PASS on paper.** The frozen audit flagged 7 of 200 (3.5%). But it caught only 2 of the 7 problems found by hand in the 15, so the 3.5% badly undercounts.
+- **Criterion 3 (your call; my read):** 9 of 10 previously flagged tasks lost the fix and kept their reproduction. `sympy-16766` still names the fix (`_print_Indexed`).
+- **Variants did reach the prompt:** 4 distinct system-prompt hashes, one per variant, with 50/49/50/51 tasks each. Style effect: terse has a median of 14 words and rambly 50. The typo variant produced all-lowercase text in only 19 of 49 and few actual typos.
+- **Observed pattern, not acted on:** 4 of the 5 `rambly` rewrites in the 15 guess the cause, and 2 of the 6 `file_mention` rewrites leak the fix.
