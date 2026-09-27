@@ -27,7 +27,8 @@ Commands
   trackc-judge    judge every r3 rewrite and Stage 1 facts JSON
   trackc-review-r3  r3 review page + pre-registered stopping rule (no API calls)
   trackc-review   15 random rewrites next to originals -> docs/trackc_rewrite_review.md
-  trackd-add-task  register a real task: --id --repo --test-cmd --prompt [--base-commit]
+  trackd-add-task  register a real task: --id --repo --prompt [--base-commit] AND either
+                   --test-cmd "npm test"  OR  --step "1st step" --step "2nd step" --expected "what you should see"
   trackd-jev       Jev prediction per Track D task (once, before any attempt)
   trackd-log       log one attempt: --id --model haiku|sonnet|opus --tests-pass yes|no --would-merge yes|no --review-min N [--notes] [--cc-version]
   trackd-report    reports/trackd.md (counts only)
@@ -70,6 +71,8 @@ async function main() {
       repo: { type: "string" },
       prompt: { type: "string" },
       "test-cmd": { type: "string" },
+      step: { type: "string", multiple: true },
+      expected: { type: "string" },
       "base-commit": { type: "string" },
       model: { type: "string" },
       "tests-pass": { type: "string" },
@@ -165,7 +168,7 @@ async function main() {
       await (await import("./trackc/index.ts")).runReview();
       break;
     case "trackd-add-task":
-      (await import("./trackd.ts")).addTask({ id: values.id, repo: values.repo, prompt: values.prompt, testCmd: values["test-cmd"], baseCommit: values["base-commit"] });
+      (await import("./trackd.ts")).addTask({ id: values.id, repo: values.repo, prompt: values.prompt, testCmd: values["test-cmd"], steps: values.step, expected: values.expected, baseCommit: values["base-commit"] });
       break;
     case "trackd-jev":
       await (await import("./trackd.ts")).runTrackDJev(th.policy, { approveJev: values["approve-jev"] });
