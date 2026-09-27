@@ -46,3 +46,10 @@ The logger enforces the rules: registered tasks only, cascade order, nothing log
 - **One attempt per model:** run-to-run variation isn't measured.
 - **The cascade order means higher models never run on tasks a cheaper one solved,** so their success there is unobserved.
 - **Subscription usage** has no per-run cost, so the report can't give dollar figures, only runs and review minutes.
+
+## Amendment 1 (2026-09-28, before any task is registered)
+- **Tasks with no automated tests** (new features, UI work) may register a **written manual check** instead of a test command: numbered steps plus the expected result.
+- **The check is locked at registration.** A lock hash covers the prompt and the check together, and changing either after registration isn't possible.
+- **Every task has exactly one kind of check:** `test_cmd` or `manual-check`.
+- For manual-check tasks, `tests_pass` means "every step was followed and the expected result was seen".
+- **The report marks these tasks `manual-check`,** and gives a separate count of successes that rest on my judgement alone (manual check plus "would merge"), so readers can discount them.
