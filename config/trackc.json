@@ -1,0 +1,24 @@
+{
+  "_note": "Track C task selection and prompt rewriting. See docs/trackc_plan.md. Strata use only pre-Track-C information: Track B's Claude 4.5 ladder outcome (prior) and SWE-bench's human difficulty. Weights = pool / take, used to report population estimates for all 500.",
+  "seed": 20260927,
+  "repo_cap": 0.35,
+  "prior_ladder": {
+    "haiku": "20260217_mini-v2.0.0_claude-4-5-haiku-high",
+    "sonnet": "20260217_mini-v2.0.0_claude-4-5-sonnet-high",
+    "opus": "20260217_mini-v2.0.0_claude-4-5-opus-high"
+  },
+  "allocation": {
+    "A_haiku_easy": 36,
+    "A_haiku_hard": 46,
+    "B_sonnet": 35,
+    "C_opus": 33,
+    "D_none_easy": 10,
+    "D_none_hard": 40
+  },
+  "pilot_per_group": { "A_haiku_easy": 2, "A_haiku_hard": 2, "B_sonnet": 2, "C_opus": 2, "D_none_easy": 1, "D_none_hard": 1 },
+  "rewrite": {
+    "prompt_version": "r1",
+    "max_tokens": 400,
+    "instruction": "Rewrite this bug report as the short message a developer would type to a coding agent. 1–3 sentences, casual, may be vague or have typos, can mention a file or function name if a developer would know it. Do NOT say how hard it is, do NOT hint at severity or effort, do NOT include the solution. Output only the message."
+  }
+}
