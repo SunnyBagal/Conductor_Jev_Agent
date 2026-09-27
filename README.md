@@ -16,7 +16,7 @@ npm run cli -- --help                               # all commands and options
 | `src/questions.ts` | The Jev questions (review these first) |
 | `src/policy.ts` | Pure function: answers + thresholds → tier + reason |
 | `config/thresholds.json` | Policy thresholds, split seed, sweep grid |
-| `config/costs.json` | Relative cost per tier (**you fill this in**) |
+| `config/costs.json` | Official per-token prices by model (source cited); tier costs for `eval` |
 | `data/tasks.jsonl`, `data/labels.csv` | Your prompts and labels |
 | `reports/report.md` | Generated report |
 | `reports/test_runs.log` | One line for every `--final` run |
