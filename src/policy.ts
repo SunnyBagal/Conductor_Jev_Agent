@@ -94,16 +94,23 @@ export function credibleSet(probs: Record<string, number>, coverage: number, mus
   return [...out];
 }
 
+/** Rule 1 on its own: the risky-area / destructive Nouls that clear their thresholds. */
+export function riskGateHits(a: JevAnswers, t: Pick<PolicyThresholds, "risky" | "destructive">): string[] {
+  const hits: string[] = [];
+  const risky = maxOf(a, RISKY_IDS);
+  const destructive = maxOf(a, DESTRUCTIVE_IDS);
+  if (risky.p >= t.risky) hits.push(`${risky.id} P=${f2(risky.p)} >= ${f2(t.risky)}`);
+  if (destructive.p >= t.destructive) hits.push(`${destructive.id} P=${f2(destructive.p)} >= ${f2(t.destructive)}`);
+  return hits;
+}
+
 export function decide(a: JevAnswers, t: PolicyThresholds): Decision {
   const reasons: string[] = [];
   const confidence = Math.min(a.task_type.confidence, a.scope.confidence);
   const done = (tier: Tier): Decision => ({ tier, reasons, reason: `${tier}: ${reasons.join("; ")}`, confidence });
 
   // 1. Hard gate: risky or destructive -> frontier.
-  const risky = maxOf(a, RISKY_IDS);
-  const destructive = maxOf(a, DESTRUCTIVE_IDS);
-  if (risky.p >= t.risky) reasons.push(`${risky.id} P=${f2(risky.p)} >= ${f2(t.risky)}`);
-  if (destructive.p >= t.destructive) reasons.push(`${destructive.id} P=${f2(destructive.p)} >= ${f2(t.destructive)}`);
+  reasons.push(...riskGateHits(a, t));
   if (reasons.length) return done("frontier");
 
   const tt = a.task_type;
