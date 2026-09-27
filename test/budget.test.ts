@@ -27,3 +27,11 @@ test("budgetedClient blocks unmetered beta endpoints and refuses calls over the 
   assert.throws(() => c.beta, BudgetError);
   await assert.rejects(c.messages.create({ model: "claude-haiku-4-5", max_tokens: 10, messages: [{ role: "user", content: "hi" }] }), BudgetError);
 });
+
+test("the committed budget blocks every Anthropic call (cap = 0)", async () => {
+  const { loadBudget } = await import("../src/budget.ts");
+  assert.equal(loadBudget().cap_usd, 0);
+  process.env.ANTHROPIC_API_KEY ??= "test-key-not-used";
+  const c = budgetedClient("t");
+  await assert.rejects(c.messages.create({ model: "claude-haiku-4-5", max_tokens: 1, messages: [{ role: "user", content: "x" }] }), BudgetError);
+});

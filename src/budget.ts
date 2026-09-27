@@ -12,7 +12,7 @@ export const BUDGET_FILE = "config/budget.json";
 export const LEDGER_FILE = "data/spend_ledger.jsonl";
 
 const BudgetSchema = z.object({
-  cap_usd: z.number().positive(),
+  cap_usd: z.number().min(0),
   approval_threshold_usd: z.number().positive(),
   batch_discount: z.number().min(0).max(1),
   /** $/MTok by model id prefix. */
