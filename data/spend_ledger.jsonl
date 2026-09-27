@@ -1,0 +1,6 @@
+{"at": "2026-09-28T00:00:00Z", "what": "BEFORE CAP: r1 rewrites (200, sonnet-4-6)", "model": "various", "input_tokens": 0, "output_tokens": 0, "usd": 0.576, "batch": false, "counts_toward_cap": false}
+{"at": "2026-09-28T00:00:00Z", "what": "BEFORE CAP: r2 rewrites (200, sonnet-4-6)", "model": "various", "input_tokens": 0, "output_tokens": 0, "usd": 0.638, "batch": false, "counts_toward_cap": false}
+{"at": "2026-09-28T00:00:00Z", "what": "BEFORE CAP: r3 stage 2 (200, sonnet-4-6)", "model": "various", "input_tokens": 0, "output_tokens": 0, "usd": 0.421, "batch": false, "counts_toward_cap": false}
+{"at": "2026-09-28T00:00:00Z", "what": "BEFORE CAP: r3 stage 1 (200, sonnet-4-6)", "model": "various", "input_tokens": 0, "output_tokens": 0, "usd": 1.209, "batch": false, "counts_toward_cap": false}
+{"at": "2026-09-28T00:00:00Z", "what": "BEFORE CAP: judge validation (40, opus-5-5)", "model": "various", "input_tokens": 0, "output_tokens": 0, "usd": 0.432, "batch": false, "counts_toward_cap": false}
+{"at": "2026-09-28T00:00:00Z", "what": "BEFORE CAP: judge all r3 (400, opus-5-5)", "model": "various", "input_tokens": 0, "output_tokens": 0, "usd": 4.545, "batch": false, "counts_toward_cap": false}
