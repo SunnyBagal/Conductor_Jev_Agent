@@ -1,17 +1,24 @@
 {
-  "_note": "Track B tiers. Chosen 2026-09-27 as one agent scaffold (Anthropic's reference 'tools' harness) across a Haiku -> Sonnet -> Opus ladder, so tier differences reflect the model, not the agent. Edit freely; any submission under evaluation/verified with results/results.json works.",
+  "_note": "Track B ladders. ladders[0] defines the tune/test split (frozen in reports/trackb_split.json). Each tier names the model (key into config/costs.json prices) and the SWE-bench/experiments submission folders under evaluation/verified.",
   "split": "verified",
   "sample": 500,
   "seed": 7,
-  "tiers": {
-    "cheap": [
-      "20241022_tools_claude-3-5-haiku"
-    ],
-    "standard": [
-      "20250522_tools_claude-4-sonnet"
-    ],
-    "frontier": [
-      "20250522_tools_claude-4-opus"
-    ]
-  }
+  "ladders": [
+    {
+      "name": "Claude 4 (Anthropic 'Tools' harness)",
+      "tiers": {
+        "cheap": { "model": "claude-3-5-haiku", "submissions": ["20241022_tools_claude-3-5-haiku"] },
+        "standard": { "model": "claude-sonnet-4", "submissions": ["20250522_tools_claude-4-sonnet"] },
+        "frontier": { "model": "claude-opus-4", "submissions": ["20250522_tools_claude-4-opus"] }
+      }
+    },
+    {
+      "name": "Claude 4.5 (mini-SWE-agent v2.0.0, reasoning high, 2026-02-17)",
+      "tiers": {
+        "cheap": { "model": "claude-haiku-4-5", "submissions": ["20260217_mini-v2.0.0_claude-4-5-haiku-high"] },
+        "standard": { "model": "claude-sonnet-4-5", "submissions": ["20260217_mini-v2.0.0_claude-4-5-sonnet-high"] },
+        "frontier": { "model": "claude-opus-4-5", "submissions": ["20260217_mini-v2.0.0_claude-4-5-opus-high"] }
+      }
+    }
+  ]
 }

@@ -45,6 +45,9 @@ export const CostsSchema = z.object({
   standard: z.number().positive().nullable(),
   frontier: z.number().positive().nullable(),
   router_overhead: z.number().min(0).default(0),
+  price_source: z.string().optional(),
+  price_retrieved: z.string().optional(),
+  prices_usd_per_mtok: z.record(z.string(), z.object({ input: z.number().positive(), output: z.number().positive() })).default({}),
 });
 export type Costs = z.infer<typeof CostsSchema>;
 export interface FilledCosts {
@@ -54,16 +57,20 @@ export interface FilledCosts {
   router_overhead: number;
 }
 
+const LadderTierSchema = z.object({ model: z.string(), submissions: z.array(z.string()) });
+export const LadderSchema = z.object({
+  name: z.string(),
+  tiers: z.object({ cheap: LadderTierSchema, standard: LadderTierSchema, frontier: LadderTierSchema }),
+});
+export type Ladder = z.infer<typeof LadderSchema>;
+
 export const SwebenchConfigSchema = z.object({
   _note: z.string().optional(),
   split: z.literal("verified"),
   sample: z.number().int().positive(),
   seed: z.number().int(),
-  tiers: z.object({
-    cheap: z.array(z.string()),
-    standard: z.array(z.string()),
-    frontier: z.array(z.string()),
-  }),
+  /** ladders[0] defines Track B's tune/test split; later ladders are evaluated on the same test ids. */
+  ladders: z.array(LadderSchema).min(1),
 });
 export type SwebenchConfig = z.infer<typeof SwebenchConfigSchema>;
 
