@@ -2,7 +2,7 @@
 
 Checks whether TypeSafe's **Jev** can send coding-agent prompts to the right model tier (cheap / standard / frontier). The output is an evaluation report, not a production router.
 
-Start with **[PLAN_AND_REPORT.md](PLAN_AND_REPORT.md)**, a short summary.
+New here? Read **[docs/PROJECT_OVERVIEW.md](docs/PROJECT_OVERVIEW.md)** first, then **[PLAN_AND_REPORT.md](PLAN_AND_REPORT.md)** for results.
 
 ```sh
 npm install
