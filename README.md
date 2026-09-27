@@ -20,5 +20,7 @@ npm run cli -- --help                               # all commands and options
 | `data/tasks.jsonl`, `data/labels.csv` | Your prompts and labels |
 | `reports/report.md` | Generated report |
 | `reports/test_runs.log` | One line for every `--final` run |
+| `reports/trackb.md` | SWE-bench deep-dive (`npm run cli -- trackb`) |
+| `reports/trackb_test_runs.log` | One line for every time the Track B test half is scored |
 
 Environment variables: `DECIDER=mock|typesafe`, `TYPESAFE_API_KEY`, `TYPESAFE_BASE_URL`, `ANTHROPIC_API_KEY` (only for `--with-llm` and `label`).
