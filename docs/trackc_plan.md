@@ -65,3 +65,35 @@ The anchors are Track B's measured mini-SWE-agent costs, scaled by price. Claude
 
 ## Rewriter (Step 1)
 `claude-sonnet-4-6` at temperature 0. It isn't one of the evaluated models, and Sonnet 5, Opus 5.5 and Fable 5.1 reject a temperature setting. It sees only the issue text. The model ID, prompt version and output go to `data/trackc_prompts.jsonl`.
+
+## Pre-registered before any runs (2026-09-27)
+**Hypothesis (H1):** Fable 5.1 is more *consistent* across attempts than Opus 5.5, even if its single-attempt solve rate is lower.
+- **Measure:** on tasks where both models have 3 valid attempts, a task is *inconsistent* for a model if it passed 1/3 or 2/3.
+- **Test:** paired sign test on the discordant tasks (consistent for one model, inconsistent for the other), two-sided, α = 0.05. H1 is supported only if Fable has significantly fewer inconsistent tasks. Anything else gets reported as "not supported", with the counts.
+
+**Attempts:** 3 per task per model on the casual prompt, for every model and every task.
+
+**How an attempt is counted:**
+- `pass` / `fail`: the hidden SWE-bench tests pass or fail. Only these count as **valid** attempts.
+- `refused`: the model returned `stop_reason: refusal`. Logged and counted separately, and **left out of the solve rates**.
+- `fallback`: a turn was answered by a model other than the one requested (for example, an automatic fallback after a refusal). Logged separately and left out of the solve rates.
+- `error`: a harness or sandbox failure. Logged, retried up to 2 times, then left out.
+
+**Per task and model:**
+- *Majority pass:* at least 2 valid attempts, and passes > valid / 2.
+- *All pass:* at least 2 valid attempts, and passes = valid.
+- With fewer than 2 valid attempts, the result is *undetermined* and counted separately.
+
+**Two labels per task,** tiers ordered by price (cheap < standard < top < ceiling):
+- `label_majority`: the cheapest tier with a majority pass.
+- `label_all`: the cheapest tier with an all pass.
+- `unsolved` if no tier passes. The label is flagged *uncertain* if a cheaper tier is undetermined.
+- Router results are reported under both labels.
+
+**Per model:** majority-pass rate, all-pass rate, the pass-count distribution (0/3, 1/3, 2/3, 3/3), refusal count, harness-error count, and spend (total, per task, and Fable's share of the total).
+
+**Quality proxies per patch:** lines changed, files touched, and whether the existing tests still pass (SWE-bench `PASS_TO_PASS`, a curated set of the repo's existing tests, not its full suite). A resolved patch passes these by definition, so the proxy only separates failing patches.
+
+**Blind review:** 15 random tasks where both Opus 5.5 and Fable 5.1 had a majority pass. For each model I take its first passing patch and label the two A/B in random order. The key goes in `data/private/blind_key.json` (git-ignored), not next to the review.
+
+**Updated cost:** 3 attempts × 4 models is about $9 per task, so 200 tasks ≈ **$1,800 (range $1,200–3,000)**. Pilot: 10 tasks × 4 models × 3 attempts plus the control arm (10 × 3) ≈ **$100**.
