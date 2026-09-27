@@ -29,22 +29,34 @@ The main mistake to measure is **under-routing**: sending a task to a model too 
 | Costs | ✅ `config/costs.json` holds official per-token prices by model (source cited) |
 | SWE-bench (Track B) | ✅ 500 tasks, two Claude ladders, full detail in [`reports/trackb.md`](reports/trackb.md). **Correction:** the Claude 4 ladder is *not* one clean scaffold (Haiku run is from 2024, not pass@1). The Claude 4.5 ladder is. |
 
-## Findings with real Jev (2026-09-27, SWE-bench)
-The ground truth here is the cheapest model that actually solved each task. Thresholds were tuned on one half and scored on the other half (199 tasks). To reproduce: `npx tsx analysis/trackb.mts`.
+## Findings with real Jev (SWE-bench, test half)
+Ground truth is which model actually solved each task. Thresholds were tuned on ladder 1's tune half; the split is frozen. The test half has been viewed several times, so treat these as **exploratory**. Full detail: `npm run cli -- trackb` → [`reports/trackb.md`](reports/trackb.md).
 
-| Router (held-out half) | Under-routed ↓ | Avg tier (0 = cheap, 2 = frontier) |
+**Ladder 2: Claude 4.5 (Haiku / Sonnet / Opus), one clean scaffold, measured cost per task**
+
+| Router (190 tasks) | Under-routed ↓ | Measured $/task |
 |---|---|---|
-| **Always standard (Sonnet)** | **9/199 (4.5%)** | **1.00** |
-| Jev, credible-set rule (new default) | 12/199 (6.0%) | 1.22 |
-| Jev, confidence round-up (old rule) | 12/199 (6.0%) | 1.24 |
-| Keywords | 35/199 (17.6%) | 0.94 |
-| Always frontier (Opus) | 0/199 (0.0%) | 2.00 |
+| Always standard (Sonnet 4.5) | 7/190 (3.7%) | $0.635 |
+| **Jev, credible-set rule** | **1/190 (0.5%)** | **$0.604** |
+| Always frontier (Opus 4.5) | 0/190 (0.0%) | $0.640 |
+| Keywords | 8/190 (4.2%) | $0.536 |
+| Cascade Haiku→Sonnet→Opus (upper bound) | 0/190 (0.0%) | $0.446 |
 
-- **A baseline beats Jev.** "Always Sonnet" under-routes less *and* costs less. Opus was the only model that could solve just 18 of the 396 solved tasks (4.5%), so the frontier tier rarely pays off.
-- **Jev does spot easy tasks.** Haiku solved 64% of the tasks Jev called cheap, against 27% of those it called frontier. But its "frontier" label doesn't predict when Opus is actually needed (2.7–4.1% whichever tier Jev picks).
-- **Sending easy tasks to Haiku doesn't pay yet.** A two-tier Jev router that moves 25–37% of tasks to Haiku pushes under-routing to 12–17% on the held-out half.
-- **Jev's own overhead is tiny:** about 2,300 input tokens per task, 312 ms median (376 ms p95), **$0.10 per 1,000 tasks**.
-- **Option 1 vs option 2:** the credible-set rule matched the old rule's under-routing at lower cost. With untuned thresholds on all 396 tasks, it fixed 8 under-routings and caused 3. It's now the default (`mass_coverage: 0.7`). Option 2 settled the cost question: Jev's overhead doesn't matter.
+**Ladder 1: Claude 3.5 Haiku / 4 Sonnet / 4 Opus, estimated cost from per-token prices**
+
+| Router (199 tasks) | Under-routed ↓ | Est. cost vs always-standard |
+|---|---|---|
+| **Always standard (Sonnet 4)** | **9/199 (4.5%)** | **1.00×** |
+| Jev, credible-set rule | 12/199 (6.0%) | 2.13× |
+| Risk gate only | 9/199 (4.5%) | 1.44× |
+| Cascade (upper bound) | 0/199 (0.0%) | 0.80× |
+
+- **The ladder decides the winner.** Opus 4 barely beats Sonnet 4 (366 vs 362 of 500 solved), so routing up is wasted spend and "always standard" wins. Opus 4.5 clearly beats Sonnet 4.5 (384 vs 356), and there Jev slightly beats always-standard. The gaps are within the error bars.
+- **Per-token price misleads.** Opus 4.5 costs 1.67× Sonnet 4.5 per token, but only **1.15× per task**, because it uses fewer tokens. So always-Opus costs about the same as always-Sonnet and solves more.
+- **The cascade saves money only on solvable tasks.** Across all 500 tasks it costs **1.35×** always-standard ($0.891 vs $0.658), because tasks nobody can solve pay for three runs. What it buys is more solves (403 vs 356), plus about 1.6 runs of waiting per task.
+- **The risk gate catches almost nothing extra here:** 59 escalations, 5 of them Opus-only (8.5%, against a 6.6% base rate). SWE-bench rarely touches auth or payments, so its real value is untested.
+- **Jev's own overhead is tiny:** about 2,300 input tokens, 312 ms median, $0.10 per 1,000 tasks.
+- **Option 1 was picked on the tune half, but made the default after I had seen test numbers.** It is not confirmed on held-out data; see section 4 of the report.
 
 ## For a product like Conductor
 Conductor runs Claude Code, Codex and other agents in cloud sandboxes, often for hours, on the user's own keys or subscriptions. An under-routed task wastes a whole agent run plus the developer's review time, which costs far more than the tokens saved.
