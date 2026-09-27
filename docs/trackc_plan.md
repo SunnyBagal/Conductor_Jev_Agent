@@ -153,3 +153,31 @@ Where these conflict with the section above, this amendment takes precedence.
 - **Criterion 3 (your call; my read):** 9 of 10 previously flagged tasks lost the fix and kept their reproduction. `sympy-16766` still names the fix (`_print_Indexed`).
 - **Variants did reach the prompt:** 4 distinct system-prompt hashes, one per variant, with 50/49/50/51 tasks each. Style effect: terse has a median of 14 words and rambly 50. The typo variant produced all-lowercase text in only 19 of 49 and few actual typos.
 - **Observed pattern, not acted on:** 4 of the 5 `rambly` rewrites in the 15 guess the cause, and 2 of the 6 `file_mention` rewrites leak the fix.
+
+## Rewrite r3: two-stage design, judge and stopping rule (pre-registered 2026-09-28, before any r3 output)
+
+### Pipeline
+1. **Stage 1: symptom extraction.** `claude-sonnet-4-6`, temperature 0, structured JSON. It reads the original issue and returns **only** `user_action`, `observed_behavior`, `expected_behavior`, `reproduction` (optional, minimal) and `symptom_locations` (files and functions that appear in tracebacks or in the user's own code, not where the fix goes). There are no fields for cause, fix or fix location, and it's told to drop any speculation or proposed fix in the report. Saved to `data/trackc_stage1.jsonl`.
+2. **Stage 2: casual rewrite.** A separate `claude-sonnet-4-6` call at temperature 0 that receives **only** the Stage 1 JSON plus the task's style line. It never sees the original issue. Same rules as r2.
+   - **`typo`:** generated with the terse style, then typos are added **in code**, seeded per task (seed = sha256 of variant_seed and task id). The text is lowercased and gets 1–3 character swaps or drops in plain words, skipping code, backticked spans, identifiers and paths. The seed and every edit are recorded.
+   - **`file_mention`:** may only name items from `symptom_locations`. The style line lists them, and code also checks for any file or identifier in the rewrite that isn't in the Stage 1 JSON.
+
+### Judge
+- **Model:** `claude-opus-5-5` at `effort: medium`, returning a structured label. It labels each **rewrite** (given the original issue) as `clean`, `fix_leak`, `cause_hint`, `location_hint` or `missing_repro`, in that priority order (`fix_leak` first). It also labels each **Stage 1 JSON** the same way, since leaks can start there.
+  - "Should return X" or "shouldn't raise" is expected behaviour, **not** a fix leak.
+  - Naming the function the user called, or one from a traceback, is **not** a location hint.
+- **Validation before any use:** the 40 hand-judged examples (r1's 15, r2's 15, and the 10 previously flagged tasks in their r2 wording) are frozen as gold labels in `data/trackc_judge_gold.jsonl`, committed before the judge runs.
+  - **Requirement:** every gold `fix_leak` (8 of them) must be labelled exactly `fix_leak`.
+  - The full 5×5 confusion matrix gets reported.
+  - **If the judge misses any fix leak, it isn't used:** I stop and report, with no retuning of the judge's prompt.
+  - The `missing_repro` gold labels were judged now, not in the earlier rounds. I say so in the report.
+
+### Acceptance criteria (same as r2, with the judge replacing the regex audit)
+1. **Fresh random 15 (new seed):** 0 fix leaks and at most 2 cause or location hints, judged by hand (you have the final say). The judge's label is shown next to each one.
+2. **Judge flags under 10% of the 200 rewrites** (at most 19 non-clean).
+3. **The 8 tasks flagged by hand in r2, shown in their r3 version:** you check that the fix is gone and the reproduction is kept.
+
+### Stopping rule
+- **If r3 fails any criterion, there is no r4.** Every task the judge flags (rewrite or Stage 1 JSON not clean) is **excluded**, the exclusions are reported per stratum and per repo, and the run continues with the rest.
+  - The exclusion isn't random (issues that propose fixes are more likely to be dropped), which is a known bias. The report notes it, and weights are recomputed as pool ÷ kept per stratum.
+- **If r3 passes,** the flagged tasks are still reported, and `fix_leak` tasks are still excluded, because a leaked fix contaminates that task's label whatever the overall rate. *(This addition is mine; you can veto it.)*
