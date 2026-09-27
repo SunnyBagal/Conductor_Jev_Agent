@@ -30,6 +30,13 @@ export const PromptRowSchema = z.object({
   stop_reason: z.string().nullable(),
   usage: z.object({ input_tokens: z.number(), output_tokens: z.number() }),
   created_at: z.string(),
+  /** r3: hash of the Stage 1 facts this rewrite was generated from. */
+  facts_sha256: z.string().optional(),
+  /** r3 typo variant: seed and the edits applied in code. */
+  typo_seed: z.number().optional(),
+  typo_edits: z.array(z.object({ word: z.string(), result: z.string(), op: z.string() })).optional(),
+  /** r3: names in the rewrite not present in the Stage 1 facts. */
+  names_outside_facts: z.array(z.string()).optional(),
 });
 export type PromptRow = z.infer<typeof PromptRowSchema>;
 
