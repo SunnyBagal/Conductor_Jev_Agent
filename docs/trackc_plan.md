@@ -137,3 +137,12 @@ Where these conflict with the section above, this amendment takes precedence.
 - **Pilot:** 150 runs, so about **$9–30 of Modal on top of ~$100 in API**.
 - **Full grid, 200 tasks (2,400 runs):** about $140–475 of Modal on top of ~$1,800 in API.
 - The post-pilot projection will price full grid, cascade (200 tasks) and cascade (100 tasks), each as API plus Modal, using the pilot's measured costs and wall times.
+
+## Rewrite prompt r2: acceptance criteria (set 2026-09-28, before any r2 output exists)
+- **r1 is rejected.** The audit flagged 66 of 200: 32 possible fixes and 31 cause guesses. In 15 random rewrites, 4 leaked the fix and 3 guessed the cause or said where to look. r1 rows stay in `data/trackc_prompts.jsonl`, marked `rejected` with that reason.
+- **Style variants were never implemented in r1**, so nothing but the fixed instruction reached the rewriter. r2 adds four: `terse`, `typo`, `file_mention`, `rambly`. Each task gets one, assigned with a fixed seed and balanced within each stratum. The assignment is committed in `data/trackc_variants.jsonl` before r2 runs, and each task's variant line is appended to the rewriter's system prompt.
+- **r2 passes only if all three hold:**
+  1. **Fresh random 15:** 0 fix leaks and at most 2 hints about the cause or location. I judge each of the 15 by hand, show the audit flags next to my call, and you have the final say.
+  2. **Audit flags under 10% across all 200** (at most 19). The audit is frozen at its current version (`src/trackc/audit.ts` at this commit) and won't be changed after seeing r2.
+  3. **You check 10 random tasks the r1 audit flagged,** shown in their r2 version: the fix should be gone and any reproduction kept.
+- **If r2 fails,** I stop and show the failures. I won't change the prompt on my own.
