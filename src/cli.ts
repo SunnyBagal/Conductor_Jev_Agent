@@ -18,6 +18,9 @@ Commands
   label       optional second labeler (Claude) -> llm_labels.jsonl, disagreements.jsonl
   swebench    Track B on SWE-bench Verified (fill config/swebench.json first)
   trackb      Track B deep-dive -> reports/trackb.md (after swebench; scores the frozen test half)
+  trackc-select   Track C stratified task sample -> data/trackc_tasks.jsonl (refuses to overwrite)
+  trackc-rewrite  casual prompt per task (issue text only) -> data/trackc_prompts.jsonl (resumable)
+  trackc-review   15 random rewrites next to originals -> docs/trackc_rewrite_review.md
   all         split (if missing) -> route -> baselines -> sweep -> eval -> report
 
 Options
@@ -110,6 +113,15 @@ async function main() {
       break;
     case "trackb":
       await (await import("./trackb.ts")).runTrackB(th, loadCosts(), loadSwebenchConfig());
+      break;
+    case "trackc-select":
+      await (await import("./trackc/index.ts")).runSelect(values.force);
+      break;
+    case "trackc-rewrite":
+      await (await import("./trackc/index.ts")).runRewriteCmd({ concurrency, limit });
+      break;
+    case "trackc-review":
+      await (await import("./trackc/index.ts")).runReview();
       break;
     case "all":
       if (values["dry-run"]) {
