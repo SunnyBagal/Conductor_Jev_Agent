@@ -97,3 +97,43 @@ The anchors are Track B's measured mini-SWE-agent costs, scaled by price. Claude
 **Blind review:** 15 random tasks where both Opus 5.5 and Fable 5.1 had a majority pass. For each model I take its first passing patch and label the two A/B in random order. The key goes in `data/private/blind_key.json` (git-ignored), not next to the review.
 
 **Updated cost:** 3 attempts × 4 models is about $9 per task, so 200 tasks ≈ **$1,800 (range $1,200–3,000)**. Pilot: 10 tasks × 4 models × 3 attempts plus the control arm (10 × 3) ≈ **$100**.
+
+## Pre-registration amendment 1 (2026-09-27, before any runs)
+Where these conflict with the section above, this amendment takes precedence.
+
+### Full run uses cascade labeling; the pilot stays a full grid
+- **Full run:**
+  - Haiku 4.5 × 3 on every task.
+  - Sonnet 5 × 3 only where Haiku did not pass 3/3.
+  - Opus 5.5 × 3 **and** Fable 5.1 × 3 only where Sonnet did not pass 3/3.
+  - The gate is the literal pass count (3 of 3). A refused or errored attempt therefore always sends the task up a tier, which errs on the side of more data.
+- **Both labels stay computable.** If Haiku passes 3/3, both labels are cheap. Otherwise Sonnet runs, and if Sonnet passes 3/3 both labels are settled by Haiku and Sonnet. Otherwise all four models ran.
+- **Pilot:** a full grid (10 tasks × 4 models × 3 attempts, plus the control arm). The report reruns the labels as if the cascade had been used and lists every mismatch. Mismatches should be zero by construction, so any mismatch means a bug.
+- **What the cascade design can no longer claim:**
+  - How consistent or accurate Sonnet, Opus and Fable are on tasks a cheaper model already aced. Their per-model numbers only describe the escalated, harder subset, so they aren't comparable to Haiku's numbers on the full sample.
+  - Whether a higher tier *fails* where a cheaper tier passed 3/3, because it's never run there.
+  - "Did the routed model itself solve it" for a router that sends a task to a tier that never ran on it. Those cells are reported as *not observed*, not assumed.
+  - Measured cost per task for the higher tiers on easy tasks. Their costs come only from harder tasks, so they overstate what those models would cost on average.
+  - The Opus-vs-Fable test covers escalated tasks only.
+
+### Consistency
+- **Primary:** all-3-pass rate among tasks the model passed at least once, i.e. (3/3) ÷ (1/3 + 2/3 + 3/3).
+- **Secondary:** the earlier "inconsistent = passed 1/3 or 2/3" measure.
+- **Paired Opus-vs-Fable test:** only tasks where both models have 3 valid attempts and each passed at least once. A task is discordant when exactly one of them passed 3/3. Two-sided sign test, α = 0.05.
+- **Unweighted.** H1 is a paired, within-task comparison of model behaviour, not an estimate of how common something is. Design weights would inflate the variance, break the counting that the sign test relies on, and emphasise whichever strata were undersampled. The report states the stratum makeup of the tested tasks instead.
+
+### Minimum evidence
+- **N_min = 20 discordant tasks.** With the sign test at α = 0.05, 20 gives 80% power to detect a 4:1 split in Fable's favour (at 10, power is only 38%).
+- With fewer than 20, the report says **"inconclusive — N discordant tasks"**, never "not supported".
+
+### Fallback models
+- Claude Code has `--fallback-model` (used when the model is overloaded or unavailable), and Harbor exposes it. There's no "off" switch, so disabling it means **never passing the flag**. Each run records its launch command and `fallback_model: null`.
+- Claude Code also calls a small, fast model for background work and runs subagents. For each run, `ANTHROPIC_MODEL`, `ANTHROPIC_DEFAULT_{HAIKU,SONNET,OPUS}_MODEL`, `ANTHROPIC_SMALL_FAST_MODEL` and `CLAUDE_CODE_SUBAGENT_MODEL` are all pinned to that tier's model.
+- **Backstop:** if any logged turn names a different model, the run is marked `fallback` and left out of the solve rates.
+- Cost comes from Claude Code's own `total_cost_usd`. The source of each run's cost is recorded, and runs with no cost are counted.
+
+### Cost now includes Modal compute
+- **The earlier estimates were API spend only.** Harbor runs in Modal Sandboxes at $0.00003942 per core-second and $0.00000667 per GiB-second (modal.com/pricing, retrieved 2026-09-27). That's about $0.06–0.20 per run for 1–2 cores, 4–8 GiB and 15–25 minutes.
+- **Pilot:** 150 runs, so about **$9–30 of Modal on top of ~$100 in API**.
+- **Full grid, 200 tasks (2,400 runs):** about $140–475 of Modal on top of ~$1,800 in API.
+- The post-pilot projection will price full grid, cascade (200 tasks) and cascade (100 tasks), each as API plus Modal, using the pilot's measured costs and wall times.
