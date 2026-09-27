@@ -5,12 +5,12 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { FilledCosts } from "./config.ts";
-import { ensureDir, loadTasks, TIERS, tierIndex, type Paths } from "./data.ts";
+import { ensureDir, loadRoutes, loadTasks, routesPath, TIERS, tierIndex, type Paths } from "./data.ts";
 import type { EvalResult, RouterResult } from "./eval.ts";
 import { testRunCount } from "./eval.ts";
-import { fmt, fmtCI, spend, type Count, type Metrics } from "./metrics.ts";
+import { fmt, fmtCI, overhead, spend, type Count, type Metrics } from "./metrics.ts";
 import { sweepSvg } from "./chart.ts";
-import { JEV_MODEL, QUESTION_SET_VERSION } from "./questions.ts";
+import { JEV_MODEL, JEV_USD_PER_MTOK_INPUT, QUESTION_SET_VERSION } from "./questions.ts";
 
 const readJ = <T>(f: string): T | null => (existsSync(f) ? (JSON.parse(readFileSync(f, "utf8")) as T) : null);
 const rate = (c: Count) => (c.n ? c.k / c.n : 0);
@@ -98,6 +98,16 @@ export function runReport(p: Paths, costs: FilledCosts | null, final: boolean) {
     L.push(`| confidence | exact | under-routed |`, `|---|---|---|`);
     for (const b of jev.buckets) L.push(`| ${b.bucket} | ${fmt(b.correct)} | ${fmt(b.under)} |`);
   }
+
+  L.push(`\n## Jev overhead (real calls)\n`);
+  const oh = existsSync(routesPath(p, "jev")) ? overhead(loadRoutes(p, "jev"), JEV_USD_PER_MTOK_INPUT) : null;
+  if (!oh) L.push(`No real Jev calls yet (mock decider). Run \`route\` with DECIDER=typesafe.`);
+  else
+    L.push(
+      `${oh.calls} call(s). Input tokens per task: mean ${Math.round(oh.input_tokens.mean)}, median ${oh.input_tokens.p50}, max ${oh.input_tokens.max}.`,
+      `Latency (wall time incl. SDK retries): median ${oh.latency_ms.p50} ms, p95 ${oh.latency_ms.p95} ms, max ${oh.latency_ms.max} ms.`,
+      `Cost: **$${oh.usd_per_1k_tasks.toFixed(3)} per 1,000 routed tasks** at the documented $${JEV_USD_PER_MTOK_INPUT}/M input tokens. Use this for \`router_overhead\` in config/costs.json.`,
+    );
 
   L.push(`\n## Threshold sweep (TUNE set only)\n`);
   if (!sweep) L.push(`Not run yet. Run \`sweep\`.`);

@@ -20,6 +20,12 @@ export const QUESTION_SET_VERSION = "v1";
 /** Pin the versioned model: thresholds are tuned against a specific version. */
 export const JEV_MODEL = process.env.TYPESAFE_MODEL?.trim() || "jev-1.13.0";
 
+/**
+ * Documented jev-1.13 price: $0.042 per million INPUT tokens; output tokens are free.
+ * Source: https://docs.typesafe.ai/models (read 2026-09-25). Used only to report Jev's own overhead.
+ */
+export const JEV_USD_PER_MTOK_INPUT = 0.042;
+
 export const buildState = (prompt: string) => ({ task_prompt: prompt });
 
 export const TASK_TYPES = [

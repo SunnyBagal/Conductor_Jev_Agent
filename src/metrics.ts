@@ -156,3 +156,28 @@ export function selectBest<T extends { metrics: Metrics }>(cands: readonly T[], 
       : rate(a.metrics.under) - rate(b.metrics.under) || spend(a.metrics) - spend(b.metrics),
   )[0]!;
 }
+
+const quantile = (sorted: readonly number[], q: number) =>
+  sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))]! : NaN;
+
+export interface Overhead {
+  calls: number;
+  input_tokens: { mean: number; p50: number; max: number };
+  latency_ms: { p50: number; p95: number; max: number };
+  usd_per_1k_tasks: number;
+}
+
+/** Jev's own cost and latency, from real calls only (mock rows carry no usage). */
+export function overhead(rows: readonly { usage?: { input_tokens: number }; latency_ms?: number }[], usdPerMtok: number): Overhead | null {
+  const real = rows.filter((r) => r.usage && r.latency_ms !== undefined);
+  if (!real.length) return null;
+  const tok = real.map((r) => r.usage!.input_tokens).sort((a, b) => a - b);
+  const lat = real.map((r) => r.latency_ms!).sort((a, b) => a - b);
+  const mean = tok.reduce((a, b) => a + b, 0) / tok.length;
+  return {
+    calls: real.length,
+    input_tokens: { mean, p50: quantile(tok, 0.5), max: tok.at(-1)! },
+    latency_ms: { p50: quantile(lat, 0.5), p95: quantile(lat, 0.95), max: lat.at(-1)! },
+    usd_per_1k_tasks: (mean * usdPerMtok * 1000) / 1e6,
+  };
+}

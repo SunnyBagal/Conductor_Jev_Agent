@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { accuracyByConfidence, computeMetrics, fmt, relativeCost, selectBest, wilson, type Pair } from "../src/metrics.ts";
+import { accuracyByConfidence, computeMetrics, fmt, overhead, relativeCost, selectBest, wilson, type Pair } from "../src/metrics.ts";
 import type { Tier } from "../src/data.ts";
 
 const P = (routed: Tier, label: Tier, sure: "yes" | "no" = "yes", confidence: number | null = null): Pair => ({
@@ -61,4 +61,15 @@ test("selectBest: cheapest under the cap, else least under-routing", () => {
   });
   assert.equal(selectBest([mk(0, 2, "a"), mk(1, 1, "b"), mk(3, 0, "c")], 0.1).name, "b");
   assert.equal(selectBest([mk(5, 1, "a"), mk(3, 2, "b")], 0.1).name, "b");
+});
+
+test("overhead summarizes real calls only and prices input tokens", () => {
+  assert.equal(overhead([{}], 0.042), null, "mock rows have no usage");
+  const rows = Array.from({ length: 20 }, (_, i) => ({ usage: { input_tokens: 1000 * (i + 1) }, latency_ms: 100 * (i + 1) }));
+  const o = overhead([...rows, {}], 0.042)!;
+  assert.equal(o.calls, 20);
+  assert.equal(o.input_tokens.mean, 10500);
+  assert.equal(o.latency_ms.p50, 1100);
+  assert.equal(o.latency_ms.p95, 2000);
+  assert.ok(Math.abs(o.usd_per_1k_tasks - 0.441) < 1e-9);
 });
