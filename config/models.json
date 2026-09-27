@@ -1,0 +1,15 @@
+{
+  "_note": "Track C models, one per tier. IDs from https://platform.claude.com/docs/en/about-claude/models/overview and prices from https://platform.claude.com/docs/en/about-claude/pricing (docs.claude.com redirects there), both retrieved 2026-09-27. Output price is 5x input for all four, so price ratios hold for any token mix.",
+  "retrieved": "2026-09-27",
+  "tiers": {
+    "cheap": { "name": "Claude Haiku 4.5", "id": "claude-haiku-4-5-20251001", "input_usd_per_mtok": 1, "output_usd_per_mtok": 5 },
+    "standard": { "name": "Claude Sonnet 5", "id": "claude-sonnet-5", "input_usd_per_mtok": 2, "output_usd_per_mtok": 10, "price_note": "Launch 'introductory' $2/$10 is now the standard price; the planned Sept 1 2026 rise to $3/$15 was cancelled (pricing page footnote 3)." },
+    "top": { "name": "Claude Opus 5.5", "id": "claude-opus-5-5", "input_usd_per_mtok": 4, "output_usd_per_mtok": 20 },
+    "ceiling": { "name": "Claude Fable 5.1", "id": "claude-fable-5-1", "input_usd_per_mtok": 10, "output_usd_per_mtok": 50, "access_note": "Requires 30-day data retention; zero-data-retention orgs get a 400. Thinking is always on." }
+  },
+  "rewriter": {
+    "_note": "Proposed, not yet used. Not one of the evaluated models, and accepts a fixed temperature (Sonnet 5 / Opus 5.5 / Fable 5.1 reject sampling parameters).",
+    "id": "claude-sonnet-4-6",
+    "temperature": 0
+  }
+}
