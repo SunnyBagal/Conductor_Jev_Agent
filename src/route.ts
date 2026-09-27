@@ -25,7 +25,8 @@ export async function runRoute(p: Paths, policy: PolicyThresholds, opts: RouteOp
   const results = await runPool(tasks, opts.concurrency, async (t) => {
     const r = await decider.decide(t);
     const d = decide(r.answers, policy);
-    console.log(`  ${t.id}: ${d.tier.padEnd(8)} model=${r.model}${r.cached ? " (cached)" : ""}`);
+    const perf = r.latency_ms === undefined ? "" : ` ${r.latency_ms}ms ${r.usage?.input_tokens ?? "?"} tok`;
+    console.log(`  ${t.id}: ${d.tier.padEnd(8)} model=${r.model}${r.cached ? " (cached)" : ""}${perf}`);
     const row: Route = {
       id: t.id,
       router: "jev",
@@ -35,6 +36,8 @@ export async function runRoute(p: Paths, policy: PolicyThresholds, opts: RouteOp
       model: r.model,
       answers: r.answers,
       cached: r.cached,
+      usage: r.usage,
+      latency_ms: r.latency_ms,
     };
     return row;
   });

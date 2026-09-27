@@ -45,6 +45,9 @@ export const RouteSchema = z.object({
   model: z.string().nullable().default(null),
   answers: z.unknown().optional(),
   cached: z.boolean().optional(),
+  /** Real Jev calls only: tokens and wall time of the original (possibly cached) call. */
+  usage: z.object({ input_tokens: z.number(), output_tokens: z.number() }).optional(),
+  latency_ms: z.number().optional(),
 });
 export type Route = z.infer<typeof RouteSchema>;
 

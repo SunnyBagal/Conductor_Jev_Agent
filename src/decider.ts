@@ -18,7 +18,13 @@ export interface DeciderResult {
   model: string;
   answers: JevAnswers;
   cached: boolean;
+  /** Real API calls only (kept in the cache, so reruns still report the original call). */
+  usage?: Usage;
+  latency_ms?: number;
 }
+
+export const UsageSchema = z.object({ input_tokens: z.number(), output_tokens: z.number() });
+export type Usage = z.infer<typeof UsageSchema>;
 
 export interface Decider {
   readonly kind: "mock" | "typesafe";
@@ -85,7 +91,9 @@ const CacheEntrySchema = z.object({
   requested_model: z.string(),
   model: z.string(),
   answers: JevAnswersSchema,
-  usage: z.unknown().optional(),
+  usage: UsageSchema.optional(),
+  /** Wall time of the systemOne call, including any SDK retries (what a product would wait). */
+  latency_ms: z.number().optional(),
   fetched_at: z.string(),
 });
 
@@ -105,20 +113,24 @@ export class TypeSafeDecider implements Decider {
     const file = join(this.cacheDir, `${cacheKey(task.prompt)}.json`);
     if (existsSync(file)) {
       const hit = CacheEntrySchema.parse(JSON.parse(readFileSync(file, "utf8")));
-      return { model: hit.model, answers: hit.answers, cached: true };
+      return { model: hit.model, answers: hit.answers, cached: true, usage: hit.usage, latency_ms: hit.latency_ms };
     }
+    const t0 = performance.now();
     const res = await this.#client.systemOne({ model: JEV_MODEL, state: buildState(task.prompt), questions: QUESTIONS });
+    const latency_ms = Math.round(performance.now() - t0);
+    const usage = UsageSchema.parse(res.usage);
     const answers = JevAnswersSchema.parse(JSON.parse(JSON.stringify(res.answers)));
     const entry: z.infer<typeof CacheEntrySchema> = {
       question_set_version: QUESTION_SET_VERSION,
       requested_model: JEV_MODEL,
       model: res.model,
       answers,
-      usage: res.usage,
+      usage,
+      latency_ms,
       fetched_at: new Date().toISOString(),
     };
     writeFileSync(file, JSON.stringify(entry, null, 2));
-    return { model: res.model, answers, cached: false };
+    return { model: res.model, answers, cached: false, usage, latency_ms };
   }
 }
 
