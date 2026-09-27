@@ -1,3 +1,5 @@
+import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { loadTasks, routesPath, writeJsonl, type Paths, type Route } from "./data.ts";
 import type { PolicyThresholds } from "./config.ts";
 import { assertJevApproved, makeDecider, requestBody } from "./decider.ts";
@@ -11,6 +13,24 @@ export interface RouteOptions {
   approveJev?: boolean;
 }
 
+/**
+ * Track A rule: on the real dataset (data/), the split and labels must be committed to git before
+ * any Jev routing, so the split provably could not have been chosen after seeing routes.
+ */
+export function assertSplitCommitted(p: Paths) {
+  if (p.dataDir !== "data") return;
+  const git = (...a: string[]) => execFileSync("git", a, { stdio: ["ignore", "pipe", "ignore"], encoding: "utf8" });
+  for (const f of [p.split, p.labels]) {
+    if (!existsSync(f)) throw new Error(`${f} is missing. Run \`split\` and commit it before routing.`);
+    try {
+      git("ls-files", "--error-unmatch", f);
+    } catch {
+      throw new Error(`${f} is not committed. Commit it before any Jev routing (git add ${f} && git commit).`);
+    }
+    if (git("status", "--porcelain", "--", f).trim()) throw new Error(`${f} has uncommitted changes. Commit it before any Jev routing.`);
+  }
+}
+
 export async function runRoute(p: Paths, policy: PolicyThresholds, opts: RouteOptions): Promise<Route[]> {
   const tasks = loadTasks(p).slice(0, opts.limit ?? Infinity);
 
@@ -20,6 +40,7 @@ export async function runRoute(p: Paths, policy: PolicyThresholds, opts: RouteOp
     return [];
   }
 
+  assertSplitCommitted(p);
   assertJevApproved(tasks.map((t) => t.prompt), !!opts.approveJev, "route");
   const decider = makeDecider(p.mockAnswers);
   console.log(`Routing ${tasks.length} task(s) with DECIDER=${decider.kind}, concurrency=${opts.concurrency}`);
