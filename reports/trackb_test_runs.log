@@ -1,0 +1,9 @@
+# Track B TEST-half evaluations. One line per scoring of the test half. Do not delete lines.
+# The first entries are RETROACTIVE: they happened before this log existed (times approximate).
+2026-09-27	retroactive	analysis: rules + baselines on test half (scratch run)
+2026-09-27	retroactive	analysis: two-tier gate table on test half (scratch run)
+2026-09-27	retroactive	analysis/trackb.mts saved run: rules + baselines on test half
+2026-09-27	retroactive	analysis/trackb.mts saved run: two-tier gate table on test half
+2026-09-27	retroactive	`swebench` rule comparison on all 396 solved (includes the test half)
+2026-09-27T17:35:14.738Z	trackb	commit=7de477b034d3	config=cd4de1d22585f268	n=199
+2026-09-27T17:35:53.308Z	trackb	commit=7de477b034d3-dirty	config=cd4de1d22585f268	n=199
