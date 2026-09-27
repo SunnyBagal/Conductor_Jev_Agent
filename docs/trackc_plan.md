@@ -1,6 +1,8 @@
 # Track C — Step 0 feasibility and design (2026-09-27)
 
-Nothing has been run yet. Decisions marked **(you)** are open.
+Nothing has been run yet.
+
+**Decided 2026-09-27:** SWE-bench Verified with the stratified sample below; Claude Code run headless via Harbor; Modal sandboxes; a control arm in the pilot (Sonnet 5 on the original issue text for the same 10 tasks).
 
 ## Models (`config/models.json`, confirmed on platform.claude.com)
 | Tier | Model | API ID | $/MTok in / out |
