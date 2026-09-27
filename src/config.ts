@@ -16,6 +16,12 @@ export const PolicyThresholdsSchema = z.object({
   /** Choice/Score confidence below which the tier rounds UP one. */
   task_type_conf: z.number().min(0).max(1),
   scope_conf: z.number().min(0).max(1),
+  /**
+   * Uncertainty rule. 0 = "confidence" rule: low confidence -> round up one tier.
+   * > 0 = "credible set" rule: take the fewest task types (and scope levels) that together
+   * hold this much of Jev's probability, and route to the highest tier among them.
+   */
+  mass_coverage: z.number().min(0).max(1).default(0),
 });
 export type PolicyThresholds = z.infer<typeof PolicyThresholdsSchema>;
 

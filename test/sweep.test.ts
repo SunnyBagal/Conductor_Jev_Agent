@@ -12,6 +12,7 @@ const base: PolicyThresholds = {
   scope_down: 0.5,
   task_type_conf: 0.5,
   scope_conf: 0.4,
+  mass_coverage: 0,
 };
 
 test("expandGrid builds the cartesian product over base", () => {

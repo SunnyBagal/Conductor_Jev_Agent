@@ -8,6 +8,12 @@
  *     -> cheap, but ONLY if both task_type and scope are confident.
  *  4. underspecified or needs_exploration above threshold -> at least standard.
  *  5. Low confidence on task_type OR scope -> round UP one tier (once). Never down.
+ *
+ * With t.mass_coverage > 0 ("credible set" rule), uncertainty is handled differently:
+ * rules 2-3 use the fewest task types / scope levels that together hold mass_coverage of
+ * Jev's probability and take the HIGHEST tier / level among them, and rule 5 is skipped.
+ * A split between two same-tier options then costs nothing, while a thin spread over many
+ * options pulls in higher tiers. Still never rounds down below Jev's top choice.
  */
 import { z } from "zod";
 import type { PolicyThresholds } from "./config.ts";
@@ -73,6 +79,21 @@ function maxOf<K extends string>(answers: JevAnswers, ids: readonly K[]): { id: 
   return best;
 }
 
+/** Fewest keys whose probabilities sum to >= coverage (highest first). Always includes `must`. */
+export function credibleSet(probs: Record<string, number>, coverage: number, must: string): string[] {
+  const sorted = Object.entries(probs).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const out = new Set<string>([must]);
+  let mass = probs[must] ?? 0;
+  for (const [k, p] of sorted) {
+    if (mass >= coverage) break;
+    if (!out.has(k)) {
+      out.add(k);
+      mass += p;
+    }
+  }
+  return [...out];
+}
+
 export function decide(a: JevAnswers, t: PolicyThresholds): Decision {
   const reasons: string[] = [];
   const confidence = Math.min(a.task_type.confidence, a.scope.confidence);
@@ -85,20 +106,28 @@ export function decide(a: JevAnswers, t: PolicyThresholds): Decision {
   if (destructive.p >= t.destructive) reasons.push(`${destructive.id} P=${f2(destructive.p)} >= ${f2(t.destructive)}`);
   if (reasons.length) return done("frontier");
 
-  // 2. Base tier from task type.
   const tt = a.task_type;
-  let idx = tierIndex(TASK_BASE_TIER[tt.choice]);
-  reasons.push(`task_type=${tt.choice} (conf ${f2(tt.confidence)}) -> ${TIERS[idx]}`);
-
+  const mass = t.mass_coverage > 0;
   const ttLow = tt.confidence < t.task_type_conf;
   const scLow = a.scope.confidence < t.scope_conf;
 
-  // 3. Scope.
-  const s = a.scope.score;
+  // 2. Base tier from task type (credible set: highest tier among plausible types).
+  const types = mass ? (credibleSet(tt.probabilities, t.mass_coverage, tt.choice) as TaskType[]) : [tt.choice];
+  let idx = Math.max(...types.map((k) => tierIndex(TASK_BASE_TIER[k] ?? "standard")));
+  reasons.push(
+    mass && types.length > 1
+      ? `task_type plausible {${types.join(", ")}} (${f2(t.mass_coverage)} of mass) -> ${TIERS[idx]}`
+      : `task_type=${tt.choice} (conf ${f2(tt.confidence)}) -> ${TIERS[idx]}`,
+  );
+
+  // 3. Scope (credible set: also consider the widest plausible level).
+  const topLevel = mass ? Math.max(...credibleSet(a.scope.probabilities, t.mass_coverage, String(Math.round(a.scope.score))).map(Number)) : -1;
+  const s = Math.max(a.scope.score, topLevel);
+  const sure = mass ? types.length === 1 : !ttLow && !scLow;
   if (s >= t.scope_up) {
     idx += 1;
     reasons.push(`scope ${f2(s)} >= ${f2(t.scope_up)}: up one`);
-  } else if (s <= t.scope_down && tt.choice === "localized_bug_fix" && !ttLow && !scLow) {
+  } else if (s <= t.scope_down && tt.choice === "localized_bug_fix" && sure) {
     idx = 0;
     reasons.push(`scope ${f2(s)} <= ${f2(t.scope_down)} on confident localized fix: cheap`);
   }
@@ -113,8 +142,8 @@ export function decide(a: JevAnswers, t: PolicyThresholds): Decision {
     reasons.push(`needs_exploration P=${f2(a.needs_exploration.noul)}: at least standard`);
   }
 
-  // 5. Low confidence rounds UP, once.
-  if (ttLow || scLow) {
+  // 5. Low confidence rounds UP, once (confidence rule only).
+  if (!mass && (ttLow || scLow)) {
     const which = [
       ttLow ? `task_type ${f2(tt.confidence)} < ${f2(t.task_type_conf)}` : "",
       scLow ? `scope ${f2(a.scope.confidence)} < ${f2(t.scope_conf)}` : "",

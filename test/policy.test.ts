@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { decide, JevAnswersSchema, type JevAnswers } from "../src/policy.ts";
+import { credibleSet, decide, JevAnswersSchema, type JevAnswers } from "../src/policy.ts";
 import type { PolicyThresholds } from "../src/config.ts";
 import { NOUL_IDS, type TaskType } from "../src/questions.ts";
 
@@ -13,6 +13,7 @@ const T: PolicyThresholds = {
   scope_down: 0.5,
   task_type_conf: 0.5,
   scope_conf: 0.4,
+  mass_coverage: 0,
 };
 
 interface Fx {
@@ -21,13 +22,15 @@ interface Fx {
   scope?: number;
   scopeConf?: number;
   nouls?: Partial<Record<(typeof NOUL_IDS)[number], number>>;
+  typeProbs?: Record<string, number>;
+  scopeProbs?: Record<string, number>;
 }
 
 /** Confident, low-risk answers by default; override what a test is about. */
-function fx({ type = "feature_clear_spec", typeConf = 0.9, scope = 1, scopeConf = 0.9, nouls = {} }: Fx = {}): JevAnswers {
+function fx({ type = "feature_clear_spec", typeConf = 0.9, scope = 1, scopeConf = 0.9, nouls = {}, typeProbs, scopeProbs }: Fx = {}): JevAnswers {
   const raw = {
-    task_type: { type: "choice", choice: type, confidence: typeConf, probabilities: { [type]: 1 } },
-    scope: { type: "score", score: scope, confidence: scopeConf, probabilities: { "1": 1 } },
+    task_type: { type: "choice", choice: type, confidence: typeConf, probabilities: typeProbs ?? { [type]: 1 } },
+    scope: { type: "score", score: scope, confidence: scopeConf, probabilities: scopeProbs ?? { [String(Math.round(scope))]: 1 } },
     ...Object.fromEntries(NOUL_IDS.map((id) => [id, { type: "noul", noul: nouls[id] ?? 0.05 }])),
   };
   return JevAnswersSchema.parse(raw);
@@ -140,4 +143,59 @@ test("answer schema rejects missing questions and bad probabilities", () => {
   const { risky_auth: _omit, ...missing } = good;
   assert.throws(() => JevAnswersSchema.parse(missing));
   assert.throws(() => JevAnswersSchema.parse({ ...good, underspecified: { type: "noul", noul: 1.2 } }));
+});
+
+// --- credible-set rule (mass_coverage > 0) ---------------------------------
+
+const M = { ...T, mass_coverage: 0.8 };
+
+test("credibleSet takes the fewest top options reaching the coverage, always including the choice", () => {
+  assert.deepEqual(credibleSet({ a: 0.6, b: 0.3, c: 0.1 }, 0.8, "a"), ["a", "b"]);
+  assert.deepEqual(credibleSet({ a: 0.95, b: 0.05 }, 0.8, "a"), ["a"]);
+  assert.deepEqual(credibleSet({ a: 0.3, b: 0.14, c: 0.14, d: 0.14, e: 0.14, f: 0.14 }, 0.8, "a").length, 5);
+  assert.deepEqual(credibleSet({ a: 0.5, b: 0.5 }, 0.8, "b"), ["b", "a"]);
+});
+
+test("mass rule: a split between same-tier options costs nothing (confidence rule rounds up)", () => {
+  const a = fx({ type: "feature_clear_spec", typeConf: 0.2, typeProbs: { feature_clear_spec: 0.55, multi_file_refactor: 0.45 } });
+  assert.equal(decide(a, T).tier, "frontier", "confidence rule: standard + round up");
+  assert.equal(decide(a, M).tier, "standard", "both plausible types are standard");
+});
+
+test("mass rule: routes to the highest plausible tier", () => {
+  const a = fx({ type: "trivial_edit", scope: 0, typeConf: 0.3, typeProbs: { trivial_edit: 0.6, investigate_unknown_cause: 0.35, other: 0.05 } });
+  assert.equal(decide(a, M).tier, "frontier");
+  assert.match(decide(a, M).reason, /plausible \{trivial_edit, investigate_unknown_cause\}/);
+});
+
+test("mass rule: a thin spread pulls in many options and rounds up", () => {
+  const a = fx({
+    type: "trivial_edit",
+    scope: 0,
+    typeConf: 0.1,
+    typeProbs: { trivial_edit: 0.3, localized_bug_fix: 0.14, feature_clear_spec: 0.14, multi_file_refactor: 0.14, architecture_design: 0.14, other: 0.14 },
+  });
+  assert.equal(decide(a, M).tier, "frontier");
+});
+
+test("mass rule: never below Jev's top choice, even when confident and cheap", () => {
+  assert.equal(decide(fx({ type: "trivial_edit", scope: 0, typeConf: 0.99, typeProbs: { trivial_edit: 0.97, other: 0.03 } }), M).tier, "cheap");
+});
+
+test("mass rule: a plausible wide scope level moves up one", () => {
+  const a = fx({ type: "feature_clear_spec", scope: 1.4, scopeProbs: { "1": 0.6, "3": 0.4 } });
+  assert.equal(decide(a, T).tier, "standard");
+  assert.equal(decide(a, M).tier, "frontier");
+});
+
+test("mass rule: tiny localized fix goes cheap only when it is the sole plausible type", () => {
+  const sole = fx({ type: "localized_bug_fix", scope: 0.2, scopeProbs: { "0": 0.9, "1": 0.1 }, typeProbs: { localized_bug_fix: 0.92, trivial_edit: 0.08 } });
+  assert.equal(decide(sole, M).tier, "cheap");
+  const split = fx({ type: "localized_bug_fix", scope: 0.2, scopeProbs: { "0": 0.9, "1": 0.1 }, typeProbs: { localized_bug_fix: 0.6, trivial_edit: 0.4 } });
+  assert.equal(decide(split, M).tier, "standard");
+});
+
+test("mass rule still respects the risk gate and floors", () => {
+  assert.equal(decide(fx({ type: "trivial_edit", scope: 0, nouls: { risky_payments: 0.9 } }), M).tier, "frontier");
+  assert.equal(decide(fx({ type: "trivial_edit", scope: 0, nouls: { needs_exploration: 0.9 } }), M).tier, "standard");
 });
