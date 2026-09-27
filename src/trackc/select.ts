@@ -23,7 +23,14 @@ export const TrackCConfigSchema = z.object({
     variant_seed: z.number().int().optional(),
     style_variants: z.record(z.string(), z.string().min(10)).optional(),
     rejected: z.array(z.object({ version: z.string(), instruction: z.string(), reason: z.string() })).optional(),
+    typo: z.object({ min_edits: z.number().int().min(0), max_edits: z.number().int().min(1), lowercase: z.boolean() }).loose().optional(),
+    stage1: z
+      .object({ model: z.string(), temperature: z.number(), max_tokens: z.number().int(), version: z.string(), instruction: z.string().min(50) })
+      .optional(),
   }),
+  judge: z
+    .object({ version: z.string(), model: z.string(), effort: z.enum(["low", "medium", "high", "xhigh", "max"]), max_tokens: z.number().int(), labels: z.array(z.string()), instruction: z.string().min(50) })
+    .optional(),
   tier_order: z.array(z.string()).min(2).default(["cheap", "standard", "top", "ceiling"]),
   attempts: z.number().int().min(1).default(3),
   control_arm: z.object({ tier: z.string(), attempts: z.number().int().min(1) }).loose().optional(),

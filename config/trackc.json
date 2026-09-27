@@ -24,21 +24,39 @@
     "D_none_hard": 1
   },
   "rewrite": {
-    "prompt_version": "r2",
+    "prompt_version": "r3",
     "max_tokens": 400,
-    "instruction": "Rewrite this bug report as the short message a developer would type to a coding agent. 1–3 sentences, casual, may be vague or have typos, can mention a file or function name if a developer would know it. Describe only what goes wrong and, if needed, what should happen instead. You may keep a short reproduction if the report has one: an error message, a failing input, or expected vs actual output. Keep it minimal. Do NOT guess the cause, say what to change, or say where to look — even if the bug report does. Do NOT say how hard it is, do NOT hint at severity or effort, do NOT include the solution. Output only the message.",
+    "instruction": "Write the short message a developer would type to a coding agent about this bug, using ONLY the facts in the JSON you are given. 1–3 sentences, casual, may be vague. Describe only what goes wrong and, if needed, what should happen instead. You may include the reproduction if there is one; keep it minimal. Only mention file or function names that appear in the JSON. Do NOT guess the cause, say what to change, or say where to look. Do NOT say how hard it is or hint at severity or effort. Output only the message.",
     "variant_seed": 20260928,
     "style_variants": {
       "terse": "Style for this message: terse. One short sentence or fragment, like a quick chat message.",
-      "typo": "Style for this message: typed in a hurry. All lowercase, one or two natural typos, loose punctuation.",
-      "file_mention": "Style for this message: mention the file, module, or function where the problem shows up (where the user sees it fail), if the report names one. Do not say what to change there.",
+      "typo": "Style for this message: terse. One short sentence or fragment, like a quick chat message.",
+      "file_mention": "Style for this message: mention where the problem shows up, using only one of these names: {symptom_locations}. If that list is empty, don't mention any file or function.",
       "rambly": "Style for this message: a bit rambly. 2–3 run-on sentences with some context or mild frustration, still following every rule above."
+    },
+    "typo": {
+      "_note": "typo variant = terse generation, then typos applied in code",
+      "min_edits": 1,
+      "max_edits": 3,
+      "lowercase": true
+    },
+    "stage1": {
+      "model": "claude-sonnet-4-6",
+      "temperature": 0,
+      "max_tokens": 1200,
+      "version": "s1",
+      "instruction": "You extract the user-visible symptom from a software bug report. Fill only these fields. user_action: what the user did (the call, command, or setting), one sentence. observed_behavior: what happened (error, wrong output, crash), one sentence. expected_behavior: what the user expected instead, or null if the report doesn't say. reproduction: a minimal reproduction copied from the report (a short error message, a failing input or call, or expected vs actual output; at most about 3 lines), or null if there is none. symptom_locations: file, module, class, or function names that appear in a traceback in the report or in the user's own code or calls; never include places the report suggests changing. Leave out entirely: any speculation about the cause, any analysis of internals, any proposed fix or patch, any suggestion of where code should change, and any statement of difficulty or severity, even if the report contains them. Do not restate a proposed fix as expected behavior."
     },
     "rejected": [
       {
         "version": "r1",
         "instruction": "Rewrite this bug report as the short message a developer would type to a coding agent. 1–3 sentences, casual, may be vague or have typos, can mention a file or function name if a developer would know it. Do NOT say how hard it is, do NOT hint at severity or effort, do NOT include the solution. Output only the message.",
         "reason": "Audit flagged 66/200 (32 possible fixes, 31 cause guesses); 4 of 15 random rewrites leaked the fix. No style variants reached the rewriter."
+      },
+      {
+        "version": "r2",
+        "instruction": "Rewrite this bug report as the short message a developer would type to a coding agent. 1–3 sentences, casual, may be vague or have typos, can mention a file or function name if a developer would know it. Describe only what goes wrong and, if needed, what should happen instead. You may keep a short reproduction if the report has one: an error message, a failing input, or expected vs actual output. Keep it minimal. Do NOT guess the cause, say what to change, or say where to look — even if the bug report does. Do NOT say how hard it is, do NOT hint at severity or effort, do NOT include the solution. Output only the message.",
+        "reason": "Failed acceptance 2026-09-28: fresh 15 had 3 fix leaks (limit 0) and 4 cause/location hints (limit 2); regex audit missed 5 of those 7."
       }
     ]
   },
@@ -80,5 +98,13 @@
     "assumed_cores": 1,
     "assumed_gib": 4,
     "source": "https://modal.com/pricing (Sandboxes, retrieved 2026-09-27)"
+  },
+  "judge": {
+    "version": "j1",
+    "model": "claude-opus-5-5",
+    "effort": "medium",
+    "max_tokens": 8000,
+    "labels": ["clean", "fix_leak", "cause_hint", "location_hint", "missing_repro"],
+    "instruction": "You audit a casual bug message (or a JSON of extracted symptom facts) written from an original bug report. It will be given to a coding agent, so it must not help the agent beyond what a user would know. Label it with exactly one label, using the first that applies in this order. fix_leak: it states or implies the code change that would fix the bug: a specific check, condition, parameter, method, or line to add, remove, or change; 'should use X'; 'needs to unwrap/strip/handle X'; naming the method to implement; saying a check should be removed. User-visible expected behavior (for example 'should return None', 'should not raise', 'should be disabled when set to 0') is NOT a fix leak, even if the report is a feature request. cause_hint: it speculates about why the bug happens or describes an internal mechanism ('seems like X is re-applying scaling', 'because __eq__ only checks Y', 'they seem to inherit Z', 'something changed in the collection logic'). location_hint: it tells the reader where in the code to look or change ('check around the return value in that method', 'probably in product.py'). Naming the function the user called, or a file or function that appears in a traceback, is NOT a location hint. missing_repro: the original report contains a concrete reproduction (an error message, a failing input or call, or expected vs actual output) and the message contains no concrete element of it (no error text, no literal input or call, no expected or actual values). For a JSON of facts, missing_repro applies only if the reproduction field is null while the report has one. clean: none of the above. Quote the exact words that triggered your label as evidence (empty for clean)."
   }
 }
